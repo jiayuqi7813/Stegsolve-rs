@@ -1,0 +1,16 @@
+[package]
+name = "stegsolve-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+crc32fast = "1.4.2"
+gdk-pixbuf = "0.20.7"
+gio = "0.20.7"
+glib = "0.20.7"
+gtk = { version = "0.9.5", package = "gtk4", features = ["v4_12"] }
+image = "0.25.5"
+rand = "0.8.5"
+
+[build-dependencies]
+glib-build-tools = "0.20.0"
