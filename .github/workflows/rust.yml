@@ -23,7 +23,6 @@ jobs:
           libgtk-4-dev \
           libgdk-pixbuf-2.0-dev \
           libglib2.0-dev \
-          libgio2.0-dev \
           libpng-dev \
           libjpeg-dev \
           libtiff-dev \
