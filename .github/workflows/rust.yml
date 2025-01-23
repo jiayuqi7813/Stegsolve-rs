@@ -41,7 +41,30 @@ jobs:
     - name: Install system dependencies (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        choco install -y pkgconfiglite gtk4
+        # 设置 MSVC 工具链
+        rustup default stable-msvc
+
+        # 安装 Chocolatey（如果尚未安装）
+        Set-ExecutionPolicy Bypass -Scope Process -Force
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+        Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+        # 安装 gvsbuild 依赖
+        choco install -y python --version=3.9.0
+        choco install -y git
+        choco install -y pkgconfiglite
+
+        # 安装 gvsbuild
+        python -m pip install gvsbuild
+
+        # 构建 GTK4
+        gvsbuild build gtk4
+
+        # 设置环境变量
+        $gtkPath = "C:\gtk-build\gtk\x64\release"
+        Add-Content -Path $env:GITHUB_ENV -Value "PKG_CONFIG_PATH=$gtkPath\lib\pkgconfig"
+        Add-Content -Path $env:GITHUB_ENV -Value "PATH=$gtkPath\bin;$env:PATH"
+        Add-Content -Path $env:GITHUB_ENV -Value "LIB=$gtkPath\lib;$env:LIB"
 
     - name: Build
       run: cargo build --verbose
