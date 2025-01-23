@@ -1,13 +1,9 @@
-name: Rust
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-
-env:
-  CARGO_TERM_COLOR: always
+    tags:
+      - 'v*'  # 监听以 'v' 开头的标签，例如 v1.0.0
 
 jobs:
   build:
@@ -57,8 +53,10 @@ jobs:
         # 安装 gvsbuild
         python -m pip install gvsbuild
 
-        # 构建 GTK4
-        gvsbuild build gtk4
+        # 构建 GTK4（如果缓存未命中）
+        if (-Not (Test-Path "C:\gtk-build")) {
+            gvsbuild build gtk4
+        }
 
         # 设置环境变量
         $gtkPath = "C:\gtk-build\gtk\x64\release"
@@ -66,8 +64,41 @@ jobs:
         Add-Content -Path $env:GITHUB_ENV -Value "PATH=$gtkPath\bin;$env:PATH"
         Add-Content -Path $env:GITHUB_ENV -Value "LIB=$gtkPath\lib;$env:LIB"
 
-    - name: Build
-      run: cargo build --verbose
+    - name: Cache GTK4 build
+      id: gtk4-cache
+      uses: actions/cache@v3
+      with:
+        path: C:\gtk-build
+        key: gtk4-${{ runner.os }}-${{ hashFiles('**/Cargo.toml') }}
+        restore-keys: |
+          gtk4-${{ runner.os }}-
+
+    - name: Build with Cargo (Release)
+      run: cargo build --release
 
     - name: Run tests
       run: cargo test --verbose
+
+    - name: Package artifacts
+      run: |
+        mkdir -p release
+        # 复制二进制文件到 release 目录
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          cp target/release/stegsolve-rs.exe release/stegsolve-rs-${{ matrix.os }}.exe
+        else
+          cp target/release/stegsolve-rs release/stegsolve-rs-${{ matrix.os }}
+        fi
+        # 打包
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          zip -j release/stegsolve-rs-${{ matrix.os }}.zip release/stegsolve-rs-${{ matrix.os }}.exe
+        else
+          tar -czvf release/stegsolve-rs-${{ matrix.os }}.tar.gz -C release stegsolve-rs-${{ matrix.os }}
+        fi
+
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./release/stegsolve-rs-${{ matrix.os }}.${{ matrix.os == 'windows-latest' && 'zip' || 'tar.gz' }}
+        asset_name: stegsolve-rs-${{ matrix.os }}.${{ matrix.os == 'windows-latest' && 'zip' || 'tar.gz' }}
+        asset_content_type: ${{ matrix.os == 'windows-latest' && 'application/zip' || 'application/gzip' }}
