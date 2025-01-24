@@ -3,13 +3,12 @@ name: CI/CD Pipeline
 on:
   push:
     branches:
-      - main  # 监听 main 分支的 push 事件
+      - main
     tags:
-      - 'v*'  # 监听以 'v' 开头的标签，例如 v1.0.0
+      - 'v*'
 
 jobs:
   build:
-    # 多平台矩阵
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -37,12 +36,17 @@ jobs:
         run: |
           brew install pkg-config gtk4 gdk-pixbuf glib libpng jpeg libtiff
 
-      - name: Install system dependencies (Windows)
+      # ------------------------
+      #  Windows 平台关键优化点
+      # ------------------------
+      - name: Setup Windows Rust toolchain
         if: matrix.os == 'windows-latest'
         run: |
-          # 设置 MSVC 工具链
           rustup default stable-msvc
 
+      - name: Install Windows system dependencies
+        if: matrix.os == 'windows-latest'
+        run: |
           # 安装 Chocolatey（如果尚未安装）
           Set-ExecutionPolicy Bypass -Scope Process -Force
           [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
@@ -56,25 +60,38 @@ jobs:
           # 安装 gvsbuild
           python -m pip install gvsbuild
 
-          # 构建 GTK4（如果缓存未命中）
-          if (-Not (Test-Path "C:\gtk-build")) {
+      - name: Cache GTK4 build
+        if: matrix.os == 'windows-latest'
+        uses: actions/cache@v3
+        id: gtk4-cache
+        with:
+          # 缓存的路径
+          path: C:\gtk-build
+          # 根据操作系统 + Cargo.toml 文件变化生成key
+          key: gtk4-${{ runner.os }}-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            gtk4-${{ runner.os }}-
+
+      - name: Build GTK4 (only if not cached)
+        if: matrix.os == 'windows-latest'
+        run: |
+          # 如果缓存里已包含 gvsbuild 编译好的 gtk4，那么这个文件夹应该已存在
+          # 如果不存在，才真正去编译，编译完成后依旧保存在 C:\gtk-build
+          if (-Not (Test-Path "C:\gtk-build\gtk\x64\release")) {
               gvsbuild build gtk4
           }
 
-          # 设置环境变量
+      - name: Set GTK4 env (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
           $gtkPath = "C:\gtk-build\gtk\x64\release"
           Add-Content -Path $env:GITHUB_ENV -Value "PKG_CONFIG_PATH=$gtkPath\lib\pkgconfig"
           Add-Content -Path $env:GITHUB_ENV -Value "PATH=$gtkPath\bin;$env:PATH"
           Add-Content -Path $env:GITHUB_ENV -Value "LIB=$gtkPath\lib;$env:LIB"
 
-      - name: Cache GTK4 build
-        id: gtk4-cache
-        uses: actions/cache@v3
-        with:
-          path: C:\gtk-build
-          key: gtk4-${{ runner.os }}-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: |
-            gtk4-${{ runner.os }}-
+      # ------------------------
+      #   其他平台无需变动
+      # ------------------------
 
       - name: Build with Cargo (Release)
         run: cargo build --release
@@ -86,16 +103,14 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           mkdir -p release
-          # 复制二进制文件到 release 目录
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
             cp target/release/stegsolve-rs.exe release/stegsolve-rs-${{ matrix.os }}.exe
-            # 打包为 zip
             zip -j release/stegsolve-rs-${{ matrix.os }}.zip release/stegsolve-rs-${{ matrix.os }}.exe
           else
             cp target/release/stegsolve-rs release/stegsolve-rs-${{ matrix.os }}
-            # 打包为 tar.gz
             tar -czvf release/stegsolve-rs-${{ matrix.os }}.tar.gz -C release stegsolve-rs-${{ matrix.os }}
           fi
+
 
       - name: Upload artifacts
         if: startsWith(github.ref, 'refs/tags/v')
