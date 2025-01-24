@@ -3,6 +3,7 @@ name = "stegsolve-rs"
 version = "0.1.6"
 edition = "2021"
 
+
 [dependencies]
 crc32fast = "1.4.2"
 gdk-pixbuf = "0.20.7"
@@ -14,3 +15,20 @@ rand = "0.8.5"
 
 [build-dependencies]
 glib-build-tools = "0.20.0"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort" # 可选，减少运行时依赖
+
+[build]
+rustflags = ["-C", "link-args=-Wl,-rpath,@executable_path"]
+
+[package.metadata.bundle]
+name = "MyApp"
+identifier = "com.example.myapp"
+icon = ["icon/favicon-32x32.png", "icon/apple-touch-icon.png"]
+version = "1.0.0"
+
+[package.metadata.bundle.macos]
+frameworks-dir = "Frameworks"
