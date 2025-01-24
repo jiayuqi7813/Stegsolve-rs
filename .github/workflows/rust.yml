@@ -82,7 +82,14 @@ jobs:
           echo "PATH=$gtkPath\bin;$env:PATH" >> $env:GITHUB_ENV
           echo "LIB=$gtkPath\lib;$env:LIB" >> $env:GITHUB_ENV
 
-      - name: Build with Cargo (Release)
+      - name: Build with mac_build.sh (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          chmod +x mac_build.sh
+          ./mac_build.sh
+
+      - name: Build with Cargo (Linux/Windows)
+        if: matrix.os != 'macos-latest'
         run: cargo build --release
 
       - name: Run tests
@@ -96,12 +103,19 @@ jobs:
           Copy-Item target\release\stegsolve-rs.exe release\stegsolve-rs-windows-latest.exe
           Compress-Archive -Path release\stegsolve-rs-windows-latest.exe -DestinationPath release\stegsolve-rs-windows-latest.zip
 
-      - name: Package artifacts (Linux/Mac)
-        if: matrix.os != 'windows-latest'
+      - name: Package artifacts (Linux)
+        if: matrix.os != 'windows-latest' && matrix.os != 'macos-latest'
         run: |
           mkdir -p release
           cp target/release/stegsolve-rs release/stegsolve-rs-${{ matrix.os }}
           tar -czvf release/stegsolve-rs-${{ matrix.os }}.tar.gz -C release stegsolve-rs-${{ matrix.os }}
+
+      - name: Package artifacts (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          mkdir -p release
+          cp -R target/release/bundle/osx/Stegsolve.app release/
+          tar -czvf release/stegsolve-rs-macos-latest.tar.gz -C release Stegsolve.app
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3

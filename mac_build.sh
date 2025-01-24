@@ -1,6 +1,6 @@
 #!/bin/bash
 
-APP_NAME="MyApp"
+APP_NAME="Stegsolve"
 APP_PATH="target/release/bundle/osx/${APP_NAME}.app"
 BINARY_PATH="${APP_PATH}/Contents/MacOS/stegsolve-rs"
 FRAMEWORKS_PATH="${APP_PATH}/Contents/Frameworks"
