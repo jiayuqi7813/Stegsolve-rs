@@ -38,6 +38,7 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           brew install pkg-config gtk4 gdk-pixbuf glib libpng jpeg libtiff
+          cargo install cargo-bundle
 
       - name: Setup Windows Rust toolchain
         if: matrix.os == 'windows-latest'
