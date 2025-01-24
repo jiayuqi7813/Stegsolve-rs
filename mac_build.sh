@@ -12,7 +12,12 @@ cargo bundle --release
 # 确保 Frameworks 目录存在
 mkdir -p "${FRAMEWORKS_PATH}"
 
-ls -al target/release/bundle/osx/
+ls target/release/bundle/osx/Stegsolve.app/Contents/MacOS/
+
+if [[ ! -f "${BINARY_PATH}" ]]; then
+    echo "错误：未找到主程序 ${BINARY_PATH}，请检查路径或构建过程！"
+    exit 1
+fi
 
 # 递归复制依赖的函数
 function copy_dependencies {
