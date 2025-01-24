@@ -174,6 +174,7 @@ jobs:
           asset_path: ./ubuntu-latest-release/stegsolve-rs-ubuntu-latest.tar.gz
           asset_name: stegsolve-rs-ubuntu-latest.tar.gz
           asset_content_type: application/gzip
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       # 上传 macOS 构建产物
       - name: Upload macOS Asset
@@ -183,6 +184,8 @@ jobs:
           asset_path: ./macos-latest-release/stegsolve-rs-macos-latest.tar.gz
           asset_name: stegsolve-rs-macos-latest.tar.gz
           asset_content_type: application/gzip
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
 
       # 上传 Windows 构建产物
       - name: Upload Windows Asset
@@ -192,3 +195,4 @@ jobs:
           asset_path: ./windows-latest-release/stegsolve-rs-windows-latest.zip
           asset_name: stegsolve-rs-windows-latest.zip
           asset_content_type: application/zip
+          token: ${{ secrets.GITHUB_TOKEN }}
