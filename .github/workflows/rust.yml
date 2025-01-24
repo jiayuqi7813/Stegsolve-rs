@@ -39,9 +39,6 @@ jobs:
         run: |
           brew install pkg-config gtk4 gdk-pixbuf glib libpng jpeg libtiff
 
-      # ------------------------
-      #  Windows 平台关键优化点
-      # ------------------------
       - name: Setup Windows Rust toolchain
         if: matrix.os == 'windows-latest'
         run: |
@@ -49,52 +46,41 @@ jobs:
 
       - name: Install Windows system dependencies
         if: matrix.os == 'windows-latest'
+        shell: powershell
         run: |
-          # 安装 Chocolatey（如果尚未安装）
           Set-ExecutionPolicy Bypass -Scope Process -Force
           [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
           Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-
-          # 安装 gvsbuild 依赖
           choco install -y python --version=3.9.0
           choco install -y git
           choco install -y pkgconfiglite
-
-          # 安装 gvsbuild
           python -m pip install gvsbuild
 
       - name: Cache GTK4 build
         if: matrix.os == 'windows-latest'
         uses: actions/cache@v3
-        id: gtk4-cache
         with:
-          # 缓存的路径
           path: C:\gtk-build
-          # 根据操作系统 + Cargo.toml 文件变化生成key
           key: gtk4-${{ runner.os }}-${{ hashFiles('**/Cargo.toml') }}
           restore-keys: |
             gtk4-${{ runner.os }}-
 
       - name: Build GTK4 (only if not cached)
         if: matrix.os == 'windows-latest'
+        shell: powershell
         run: |
-          # 如果缓存里已包含 gvsbuild 编译好的 gtk4，那么这个文件夹应该已存在
-          # 如果不存在，才真正去编译，编译完成后依旧保存在 C:\gtk-build
           if (-Not (Test-Path "C:\gtk-build\gtk\x64\release")) {
               gvsbuild build gtk4
           }
 
       - name: Set GTK4 env (Windows)
         if: matrix.os == 'windows-latest'
+        shell: powershell
         run: |
           $gtkPath = "C:\gtk-build\gtk\x64\release"
-          Add-Content -Path $env:GITHUB_ENV -Value "PKG_CONFIG_PATH=$gtkPath\lib\pkgconfig"
-          Add-Content -Path $env:GITHUB_ENV -Value "PATH=$gtkPath\bin;$env:PATH"
-          Add-Content -Path $env:GITHUB_ENV -Value "LIB=$gtkPath\lib;$env:LIB"
-
-      # ------------------------
-      #   其他平台无需变动
-      # ------------------------
+          echo "PKG_CONFIG_PATH=$gtkPath\lib\pkgconfig" >> $env:GITHUB_ENV
+          echo "PATH=$gtkPath\bin;$env:PATH" >> $env:GITHUB_ENV
+          echo "LIB=$gtkPath\lib;$env:LIB" >> $env:GITHUB_ENV
 
       - name: Build with Cargo (Release)
         run: cargo build --release
@@ -103,96 +89,42 @@ jobs:
         run: cargo test --verbose
 
       - name: Package artifacts (Windows)
-        if: startsWith(github.ref, 'refs/tags/v') && matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-latest'
         shell: powershell
         run: |
-          New-Item -ItemType Directory -Force -Path release
+          mkdir release
           Copy-Item target\release\stegsolve-rs.exe release\stegsolve-rs-windows-latest.exe
           Compress-Archive -Path release\stegsolve-rs-windows-latest.exe -DestinationPath release\stegsolve-rs-windows-latest.zip
 
-
       - name: Package artifacts (Linux/Mac)
-        if: startsWith(github.ref, 'refs/tags/v') && (matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest')
+        if: matrix.os != 'windows-latest'
         run: |
           mkdir -p release
-          # 复制并重命名可执行文件
           cp target/release/stegsolve-rs release/stegsolve-rs-${{ matrix.os }}
-          # 打包为 .tar.gz
           tar -czvf release/stegsolve-rs-${{ matrix.os }}.tar.gz -C release stegsolve-rs-${{ matrix.os }}
 
-
       - name: Upload artifacts
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.os }}-release
           path: release
-          retention-days: 3  # 可根据需要调整保留时间
 
-  # 仅在打标签时执行，负责汇总所有构建产物并创建/更新 GitHub Release
   release:
-    name: Upload to GitHub Release
-    needs: build   # 等待所有 build 作业完成
+    needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download Ubuntu artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v3
         with:
-          name: ubuntu-latest-release
-          path: ./ubuntu-latest-release
+          path: ./artifacts
 
-      - name: Download macOS artifacts
-        uses: actions/download-artifact@v3
+      - name: Publish Release
+        uses: softprops/action-gh-release@v1
         with:
-          name: macos-latest-release
-          path: ./macos-latest-release
-
-      - name: Download Windows artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: windows-latest-release
-          path: ./windows-latest-release
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        with:
-          tag_name: ${{ github.ref_name }}         # 例如 v1.0.0
-          release_name: ${{ github.ref_name }}     # 发布名称
-          draft: false
-          prerelease: false
+          files: |
+            ./artifacts/**/*.tar.gz
+            ./artifacts/**/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # 上传 Ubuntu 构建产物
-      - name: Upload Ubuntu Asset
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./ubuntu-latest-release/stegsolve-rs-ubuntu-latest.tar.gz
-          asset_name: stegsolve-rs-ubuntu-latest.tar.gz
-          asset_content_type: application/gzip
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      # 上传 macOS 构建产物
-      - name: Upload macOS Asset
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./macos-latest-release/stegsolve-rs-macos-latest.tar.gz
-          asset_name: stegsolve-rs-macos-latest.tar.gz
-          asset_content_type: application/gzip
-          token: ${{ secrets.GITHUB_TOKEN }}
-          
-
-      # 上传 Windows 构建产物
-      - name: Upload Windows Asset
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./windows-latest-release/stegsolve-rs-windows-latest.zip
-          asset_name: stegsolve-rs-windows-latest.zip
-          asset_content_type: application/zip
-          token: ${{ secrets.GITHUB_TOKEN }}
