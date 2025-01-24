@@ -12,6 +12,8 @@ cargo bundle --release
 # 确保 Frameworks 目录存在
 mkdir -p "${FRAMEWORKS_PATH}"
 
+ls -al
+
 # 递归复制依赖的函数
 function copy_dependencies {
     local lib=$1
