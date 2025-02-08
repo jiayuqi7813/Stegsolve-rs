@@ -119,7 +119,7 @@ jobs:
           tar -czvf release/stegsolve-rs-macos-latest.tar.gz -C release Stegsolve.app
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.os }}-release
           path: release
