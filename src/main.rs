@@ -39,10 +39,12 @@ impl DPanel {
         &self.picture
     }
 
-    // 修改为接受 RgbaImage
+  
     fn set_image(&self, img: &image::RgbaImage) {
         let pixbuf = image_to_pixbuf(img);
-        self.picture.set_pixbuf(Some(&pixbuf));
+        // self.picture.set_paintable(Some(&pixbuf)); //废弃方法
+        let textture = gtk::gdk::Texture::for_pixbuf(&pixbuf);
+        self.picture.set_paintable(Some(&textture));
     }
 
     /// 按给定缩放值(%)缩放
@@ -352,14 +354,12 @@ fn build_ui(app: &Application) {
                     fileanalysis::show_file_analysis_dialog(Some(win.as_ref()), file_path);
                 } else {
                     // 如果没有选择文件，显示错误提示
-                    let dialog = MessageDialog::new(
-                        Some(&win),
-                        gtk::DialogFlags::MODAL,
-                        MessageType::Error,
-                        ButtonsType::Ok,
-                        "请先选择一个文件",
-                    );
-                    dialog.run_async(|dialog, _| dialog.close());
+                    let dialog = AlertDialog::builder()
+                        .message("请先打开一个图像文件")
+                        .buttons(vec!["确定"])
+                        .default_button(0)
+                        .build();
+                    dialog.show(Some(&win));
                 }
             }
         });
@@ -376,14 +376,12 @@ fn build_ui(app: &Application) {
                     dialog.show(); 
                 } else {
                     // 如果没有图片，显示错误提示
-                    let dialog = MessageDialog::new(
-                        Some(&win),
-                        gtk::DialogFlags::MODAL, 
-                        MessageType::Error,
-                        ButtonsType::Ok,
-                        "请先打开一个图像文件"
-                    );
-                    dialog.run_async(|dialog, _| dialog.close());
+                    let dialog =AlertDialog::builder()
+                        .message("请先打开一个图像")
+                        .buttons(vec!["确定"])
+                        .default_button(0)
+                        .build();
+                    dialog.show(Some(&win));
                 }
             }
         });
@@ -399,14 +397,12 @@ fn build_ui(app: &Application) {
                     let dialog = crate::stereo::Stereo::new(&win, tf.get_image().clone());
                     dialog.show();
                 } else {
-                    let dialog = MessageDialog::new(
-                        Some(&win),
-                        gtk::DialogFlags::MODAL,
-                        MessageType::Warning,
-                        ButtonsType::Ok,
-                        "请先打开一个图像",
-                    );
-                    dialog.run_async(|dialog, _| dialog.close());
+                    let dialog = AlertDialog::builder()
+                        .message("请先打开一个图像文件")
+                        .buttons(vec!["确定"])
+                        .default_button(0)
+                        .build();
+                    dialog.show(Some(&win));
                 }
             }
         });
@@ -423,14 +419,12 @@ fn build_ui(app: &Application) {
                     browser.load_frames(path);
                     browser.show();
                 } else {
-                    let dialog = MessageDialog::new(
-                        Some(&win),
-                        gtk::DialogFlags::MODAL,
-                        MessageType::Warning, 
-                        ButtonsType::Ok,
-                        "请先打开一个图像文件"
-                    );
-                    dialog.run_async(|dialog, _| dialog.close());
+                    let dialog = AlertDialog::builder()
+                        .message("请先打开一个图像文件")
+                        .buttons(vec!["确定"])
+                        .default_button(0)
+                        .build();
+                    dialog.show(Some(&win));
                 }
             }
         });
@@ -450,14 +444,12 @@ fn build_ui(app: &Application) {
                     );
                     dialog.show();
                 } else {
-                    let msg_dialog = MessageDialog::new(
-                        Some(&win),
-                        gtk::DialogFlags::MODAL,
-                        MessageType::Warning,
-                        ButtonsType::Ok,
-                        "请先打开一个图像文件"
-                    );
-                    msg_dialog.run_async(|dialog, _| dialog.close());
+                    let msg_dialog = AlertDialog::builder()
+                        .message("请先打开一个图像文件")
+                        .buttons(vec!["确定"])
+                        .default_button(0)
+                        .build();
+                    msg_dialog.show(Some(&win));
                 }
             }
         });
@@ -468,14 +460,12 @@ fn build_ui(app: &Application) {
         // 帮助 - 关于
         let about_action = SimpleAction::new("about", None);
         about_action.connect_activate(move |_, _| {
-            gtk::MessageDialog::new(
-                None::<&ApplicationWindow>,
-                gtk::DialogFlags::MODAL,
-                gtk::MessageType::Info,
-                gtk::ButtonsType::Ok,
-                "StegSolve-rs (基于原版重构)\n参考 Java 原版结构\nBy: Sn1waR",
-            )
-            .run_async(|dialog, _| dialog.close());
+            let dialog = AlertDialog::builder()
+                .message("StegSolve-rs (基于原版重构)\n参考 Java 原版结构\nBy: Sn1waR")
+                .buttons(vec!["确定"])
+                .default_button(0)
+                .build();
+            dialog.show(None::<&ApplicationWindow>);
         });
         app.add_action(&about_action);
     }
@@ -518,5 +508,5 @@ fn build_ui(app: &Application) {
         });
     }
 
-    window.show();
+    window.set_visible(true);
 }
