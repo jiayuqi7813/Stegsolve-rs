@@ -1,76 +1,19 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
-#![allow(rustdoc::missing_crate_level_docs)] // it's an example
-
-mod transform;
-mod fileanalysis;
-mod stereo;
-mod extractanlysis;
-
-
 use eframe::egui;
 use egui::*;
-use rfd;
-use image::DynamicImage;
-use stereo::Stereo;
-use extractanlysis::ExtractDialog;
 
-use transform::Transform;
+
+
 
 #[derive(Default)]
-struct StegApp {
+pub struct StegApp {
     transform: Option<Transform>,
     current_file_path: Option<String>,
     zoom_level: f32,
     texture: Option<egui::TextureHandle>,
     scroll_pos: Vec2, // 新增滚动位置记录
-
-    stereo: Option<Stereo>,
-    extract_dialog: Option<ExtractDialog>,
-
-
     current_channel_text: String,
-    show_file_analysis: bool,
-    show_extract_dialog: bool,
-    show_stereo_dialog: bool,
-    show_frame_browser: bool,
-    show_combine_dialog: bool,
-    show_about: bool,
 
 }
-
-
-
-fn main() {
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1000.0, 700.0]),
-        ..Default::default()
-    };
-    if let Err(e)=eframe::run_native(
-        "StegSolve (Rust + Egui)",
-        options,
-        Box::new(|cc| {
-            let mut fonts = egui::FontDefinitions::default();
-            fonts.font_data.insert(
-                "misans".to_owned(),
-                std::sync::Arc::new(egui::FontData::from_static(
-                    include_bytes!("../font/MiSans-Normal.ttf")
-                )),
-            );
-            fonts.families
-                .entry(egui::FontFamily::Proportional)
-                .or_default()
-                .insert(0, "misans".to_owned());
-
-            cc.egui_ctx.set_fonts(fonts);
-            Ok(Box::<StegApp>::default())
-        }),
-    ) {
-        eprintln!("Error: {}", e);
-    }
-
-}
-
 
 impl StegApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Box<Self> {
@@ -79,7 +22,7 @@ impl StegApp {
         fonts.font_data.insert(
             "misans".to_owned(),
             std::sync::Arc::new(egui::FontData::from_static(
-                include_bytes!("../font/MiSans-Normal.ttf")
+                include_bytes!("../assets/fonts/MiSans-Normal.ttf")
             )),
         );
         fonts.families
@@ -99,9 +42,6 @@ impl StegApp {
                 self.texture = None;
                 self.zoom_level = 1.0;
                 self.scroll_pos = Vec2::ZERO;
-                if let Some(t) = &self.transform {
-                    self.stereo = Some(Stereo::new(t.get_image().clone()));
-                }
             }
             Err(e) => eprintln!("打开图片失败: {:?}", e),
         }
@@ -136,10 +76,6 @@ impl eframe::App for StegApp {
                     }
                     if ui.button("数据提取").clicked() {
                         self.show_extract_dialog = true;
-                        // 初始化数据提取对话框（仅在首次点击时创建）
-                        if self.extract_dialog.is_none() {
-                            self.extract_dialog = Some(ExtractDialog::default());
-                        }
                     }
                     if ui.button("立体视图").clicked() {
                         self.show_stereo_dialog = true;
@@ -208,38 +144,27 @@ impl eframe::App for StegApp {
         });
 
         if self.show_file_analysis {
-            if let Some(file_path) = &self.current_file_path {
-                fileanalysis::show_file_analysis(
-                    ctx,
-                    file_path,
-                    &mut self.show_file_analysis
-                );
-            }
+            Window::new("文件格式")
+                .open(&mut self.show_file_analysis)
+                .show(ctx, |ui| {
+                    ui.label("文件格式分析");
+                });
         }
 
 
         if self.show_extract_dialog {
-            if let Some(transform) = &self.transform {
-                Window::new("数据提取")
-                    .open(&mut self.show_extract_dialog)
-                    .show(ctx, |ui| {
-                        if let Some(dialog) = self.extract_dialog.as_mut() {
-                            // 将当前图像传入提取对话框的 UI 绘制函数
-                            dialog.ui(ui, transform.get_image());
-                        }
-                    });
-            }
+            Window::new("数据提取")
+                .open(&mut self.show_extract_dialog)
+                .show(ctx, |ui| {
+                    ui.label("数据提取");
+                });
         }
 
         if self.show_stereo_dialog {
-            Window::new("立体图分析")
+            Window::new("立体视图")
                 .open(&mut self.show_stereo_dialog)
                 .show(ctx, |ui| {
-                    if let Some(stereo) = &mut self.stereo {
-                        stereo.update(ctx, ui);
-                    } else {
-                        ui.label("请先打开图像以进行分析");
-                    }
+                    ui.label("立体视图");
                 });
         }
 
