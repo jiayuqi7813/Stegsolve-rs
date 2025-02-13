@@ -5,6 +5,7 @@ mod transform;
 mod fileanalysis;
 mod stereo;
 mod extractanlysis;
+mod framebrowser;
 
 
 use eframe::egui;
@@ -13,6 +14,7 @@ use rfd;
 use image::DynamicImage;
 use stereo::Stereo;
 use extractanlysis::ExtractDialog;
+use framebrowser::FrameBrowser;
 
 use transform::Transform;
 
@@ -26,6 +28,7 @@ struct StegApp {
 
     stereo: Option<Stereo>,
     extract_dialog: Option<ExtractDialog>,
+    frame_browser: Option<FrameBrowser>,
 
 
     current_channel_text: String,
@@ -244,10 +247,20 @@ impl eframe::App for StegApp {
         }
 
         if self.show_frame_browser {
-            Window::new("帧浏览器")
+            egui::Window::new("帧浏览器")
                 .open(&mut self.show_frame_browser)
                 .show(ctx, |ui| {
-                    ui.label("帧浏览器");
+                    // 如果帧浏览器实例尚未创建，则初始化
+                    if self.frame_browser.is_none() {
+                        self.frame_browser = Some(framebrowser::FrameBrowser::new());
+                        // 如果你需要加载帧，可以在此调用 load_frames，例如：
+                        // let _ = self.frame_browser.as_mut().unwrap().load_frames("path/to/image.png", ui.ctx());
+                    }
+                    if let Some(browser) = &mut self.frame_browser {
+                        // 在窗口中绘制帧浏览器界面
+                        browser.load_frames(&self.current_file_path.as_ref().unwrap(), ui.ctx());
+                        browser.ui(ui);
+                    }
                 });
         }
 
