@@ -8,28 +8,28 @@ StegSolve-rs 是一个基于 Rust + egui 重构的图像隐写分析工具，复
 ## 主要功能
 java原版全功能重构
 
-
+![image-20250214173053745](/img/image-20250214173053745.png)
 
 
 ## 功能截图
 
-![alt text](img/image.png)
+![image-20250214173152024](/img/image-20250214173152024.png)
 
-![alt text](img/lsb.png)
+![image-20250214173208188](/img/image-20250214173208188.png)
 
 ## 如何运行
 `git clone https://github.com/jiayuqi7813/Stegsolve-rs.git`
 
 `cargo run`
 
-目前release包存在需要依赖问题，你可以手工安装gtk4的依赖进行运行，也可以等待我发布打包好的内容，预计下个版本修复。
-
-手工构建则不存在该问题。
+release流水线正在进行重构中，下版本发布
 
 
-## Why Rust+GTK4?
-rust重构一切！
-其他的gui要么基于web，要么有更多自己的组件外包，而gtk直接在原本rust和gnome基础上进行开发，简单快捷，也没那么丑。
+## Why Rust+egui?
+egui确实文明，gtk坑太多了（
+
+## 已知问题
+- [ ] 目前子ui页面大小计算有问题，导致部分页面显示不全，需要手动调整窗口大小
 
 
 ## todo
