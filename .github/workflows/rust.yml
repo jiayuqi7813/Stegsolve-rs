@@ -72,8 +72,8 @@ jobs:
             cp target/release/stegsolve-rs release/stegsolve-rs-${{ matrix.os }}
             tar -czvf release/stegsolve-rs-${{ matrix.os }}.tar.gz -C release stegsolve-rs-${{ matrix.os }}
           elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            cp -R target/release/bundle/osx/Stegsolve.app release/
-            tar -czvf release/stegsolve-rs-${{ matrix.os }}.tar.gz -C release Stegsolve.app
+            cp target/release/stegsolve-rs release/stegsolve-rs-${{ matrix.os }}
+            tar -czvf release/stegsolve-rs-${{ matrix.os }}.tar.gz -C release stegsolve-rs-${{ matrix.os }}
           fi
 
       - name: Upload artifacts
