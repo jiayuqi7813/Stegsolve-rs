@@ -45,19 +45,6 @@ impl FileAnalysis {
     }
 }
 
-// 提供一个便捷的显示分析对话框的函数
-pub fn show_file_analysis(ctx: &egui::Context, file_path: &str, open: &mut bool) {
-    egui::Window::new("文件分析结果")
-        .open(open)
-        .resizable(true)
-        .default_size([600.0, 400.0])
-        .show(ctx, |ui| {
-            let mut analysis = FileAnalysis::new(file_path);
-            analysis.ui(ui);
-        });
-}
-
-
 
 // 工具函数
 fn uf(data: &[u8], offset: usize) -> u8 {

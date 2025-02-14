@@ -24,7 +24,7 @@ impl FrameBrowser {
     }
 
     /// 从指定路径加载图像帧（目前仅支持单帧）
-    pub fn load_frames<P: AsRef<Path>>(&mut self, path: P, ctx: &egui::Context) -> Result<(), ImageError> {
+    pub fn load_frames<P: AsRef<Path>>(&mut self, path: P) -> Result<(), ImageError> {
         //输出路径
         // println!("{:?}", path.as_ref());
         // 清空现有帧

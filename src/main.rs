@@ -6,17 +6,19 @@ mod fileanalysis;
 mod stereo;
 mod extractanlysis;
 mod framebrowser;
+mod combine;
 
 
 use eframe::egui;
 use egui::*;
 use rfd;
-use image::DynamicImage;
 use stereo::Stereo;
 use extractanlysis::ExtractDialog;
+use fileanalysis::FileAnalysis;
 use framebrowser::FrameBrowser;
 
 use transform::Transform;
+use combine::ImageCombiner;
 
 #[derive(Default)]
 struct StegApp {
@@ -29,6 +31,8 @@ struct StegApp {
     stereo: Option<Stereo>,
     extract_dialog: Option<ExtractDialog>,
     frame_browser: Option<FrameBrowser>,
+    combine_dialog: Option<ImageCombiner>,
+
 
 
     current_channel_text: String,
@@ -105,6 +109,12 @@ impl StegApp {
                 if let Some(t) = &self.transform {
                     self.stereo = Some(Stereo::new(t.get_image().clone()));
                 }
+                self.frame_browser = Some(framebrowser::FrameBrowser::new());
+                if let Some(browser) = &mut self.frame_browser {
+                    browser.load_frames(&self.current_file_path.as_ref().unwrap());
+                }
+                self.combine_dialog = Some(ImageCombiner::new(self.transform.as_ref().unwrap().get_image().clone()));
+                
             }
             Err(e) => eprintln!("打开图片失败: {:?}", e),
         }
@@ -122,6 +132,7 @@ impl eframe::App for StegApp {
                         if let Some(path) = rfd::FileDialog::new().pick_file() {
                             self.open_image(&path);
                         }
+                        ui.close_menu();    
                     }
                     if ui.button("另存为").clicked() {
                         if let Some(transform) = &self.transform {
@@ -129,29 +140,37 @@ impl eframe::App for StegApp {
                                 transform.get_image().save(path).unwrap();
                             }
                         }
+                        ui.close_menu();
                     }
+
                 });
 
                 // 分析菜单
                 ui.menu_button("分析", |ui| {
                     if ui.button("文件格式").clicked() {
                         self.show_file_analysis = true;
+                        ui.close_menu();    
                     }
+
                     if ui.button("数据提取").clicked() {
                         self.show_extract_dialog = true;
                         // 初始化数据提取对话框（仅在首次点击时创建）
                         if self.extract_dialog.is_none() {
                             self.extract_dialog = Some(ExtractDialog::default());
                         }
+                        ui.close_menu();
                     }
                     if ui.button("立体视图").clicked() {
                         self.show_stereo_dialog = true;
+                        ui.close_menu();
                     }
                     if ui.button("帧浏览器").clicked() {
                         self.show_frame_browser = true;
+                        ui.close_menu();
                     }
                     if ui.button("图像合成器").clicked() {
                         self.show_combine_dialog = true;
+                        ui.close_menu();
                     }
                 });
 
@@ -159,6 +178,7 @@ impl eframe::App for StegApp {
                 ui.menu_button("帮助", |ui| {
                     if ui.button("关于").clicked() {
                         self.show_about = true;
+                        ui.close_menu();
                     }
                 });
             });
@@ -212,73 +232,205 @@ impl eframe::App for StegApp {
 
         if self.show_file_analysis {
             if let Some(file_path) = &self.current_file_path {
-                fileanalysis::show_file_analysis(
-                    ctx,
-                    file_path,
-                    &mut self.show_file_analysis
+                let viewport_id = ViewportId::from_hash_of("file_analysis");
+                let viewport = ViewportBuilder::default()
+                    .with_title("文件分析")
+                    .with_resizable(true)
+                    .with_inner_size([600.0, 400.0])
+                    .with_decorations(true);
+                
+                let mut should_close = false;
+
+                ctx.show_viewport_immediate(
+                    viewport_id,
+                    viewport,
+                    |ctx, _class| {
+                        CentralPanel::default().show(ctx, |ui| {
+                            if ctx.input(|i| i.viewport().close_requested()) {
+                                should_close = true;
+                            }
+
+                            let mut analysis = FileAnalysis::new(file_path);
+                            analysis.ui(ui);
+                        });
+
+                        if should_close {
+                            ctx.send_viewport_cmd(ViewportCommand::Close);
+                        }
+                    },
                 );
+
+                if should_close {
+                    self.show_file_analysis = false;
+                }
+
             }
         }
-
 
         if self.show_extract_dialog {
             if let Some(transform) = &self.transform {
-                Window::new("数据提取")
-                    .open(&mut self.show_extract_dialog)
-                    .show(ctx, |ui| {
-                        if let Some(dialog) = self.extract_dialog.as_mut() {
-                            // 将当前图像传入提取对话框的 UI 绘制函数
-                            dialog.ui(ui, transform.get_image());
+                let viewport_id = ViewportId::from_hash_of("extract_dialog");
+                let viewport = ViewportBuilder::default()
+                    .with_title("数据提取")
+                    .with_resizable(true)
+                    //自动调整大小
+                    .with_inner_size([810.0, 430.0])
+                    .with_decorations(true);
+        
+                // 临时变量跟踪关闭状态
+                let mut should_close = false;
+        
+                ctx.show_viewport_immediate(
+                    viewport_id,
+                    viewport,
+                    |ctx, _class| {
+                        CentralPanel::default().show(ctx, |ui| {
+                            // 检查视口关闭命令（来自系统按钮）
+                            if ctx.input(|i| i.viewport().close_requested()) {
+                                should_close = true;
+                            }
+        
+                            // 正常绘制对话框内容
+                            if let Some(dialog) = self.extract_dialog.as_mut() {
+                                dialog.ui(ui, transform.get_image());
+                            }
+                        });
+                        //实时输出窗口大小
+                        println!("{:?}", ctx.screen_rect());
+        
+                        // 如果检测到关闭命令，执行关闭操作
+                        if should_close {
+                            ctx.send_viewport_cmd(ViewportCommand::Close);
                         }
-                    });
+                    },
+                );
+
+                // 同步关闭状态到主程序
+                if should_close  {
+                    self.show_extract_dialog = false;
+                }
             }
         }
 
+
+
         if self.show_stereo_dialog {
-            Window::new("立体图分析")
-                .open(&mut self.show_stereo_dialog)
-                .show(ctx, |ui| {
-                    if let Some(stereo) = &mut self.stereo {
-                        stereo.update(ctx, ui);
-                    } else {
-                        ui.label("请先打开图像以进行分析");
-                    }
-                });
+            if let Some(transform) = &self.transform {
+                let viewport_id = ViewportId::from_hash_of("stereo_dialog");
+                let viewport = ViewportBuilder::default()
+                    .with_title("立体图分析")
+                    .with_resizable(true)
+                    .with_inner_size([800.0, 600.0])
+                    .with_decorations(true);
+
+                let mut should_close = false;
+
+                ctx.show_viewport_immediate(
+                    viewport_id,
+                    viewport,
+                    |ctx, _class| {
+                        CentralPanel::default().show(ctx, |ui| {
+                            if ctx.input(|i| i.viewport().close_requested()) {
+                                should_close = true;
+                            }
+
+                            if let Some(stereo) = self.stereo.as_mut() {
+                                stereo.update(ctx, ui);
+                            }
+                        });
+
+                        if should_close {
+                            ctx.send_viewport_cmd(ViewportCommand::Close);
+                        }
+                    },
+                );
+
+                if should_close {
+                    self.show_stereo_dialog = false;
+                }
+            }
+
         }
 
         if self.show_frame_browser {
-            egui::Window::new("帧浏览器")
-                .open(&mut self.show_frame_browser)
-                .show(ctx, |ui| {
-                    // 如果帧浏览器实例尚未创建，则初始化
-                    if self.frame_browser.is_none() {
-                        self.frame_browser = Some(framebrowser::FrameBrowser::new());
-                        // 如果你需要加载帧，可以在此调用 load_frames，例如：
-                        // let _ = self.frame_browser.as_mut().unwrap().load_frames("path/to/image.png", ui.ctx());
-                    }
-                    if let Some(browser) = &mut self.frame_browser {
-                        // 在窗口中绘制帧浏览器界面
-                        browser.load_frames(&self.current_file_path.as_ref().unwrap(), ui.ctx());
-                        browser.ui(ui);
-                    }
-                });
+            if let Some(browser) = &mut self.frame_browser {
+                let viewport_id = ViewportId::from_hash_of("frame_browser");
+                let viewport = ViewportBuilder::default()
+                    .with_title("帧浏览器")
+                    .with_resizable(true)
+                    .with_inner_size([800.0, 600.0])
+                    .with_decorations(true);
+
+                let mut should_close = false;
+
+                ctx.show_viewport_immediate(
+                    viewport_id,
+                    viewport,
+                    |ctx, _class| {
+                        CentralPanel::default().show(ctx, |ui| {
+                            if ctx.input(|i| i.viewport().close_requested()) {
+                                should_close = true;
+                            }
+
+                            browser.ui(ui);
+                        });
+
+                        if should_close {
+                            ctx.send_viewport_cmd(ViewportCommand::Close);
+                        }
+                    },
+                );
+
+                if should_close {
+                    self.show_frame_browser = false;
+                }
+            }
         }
 
         if self.show_combine_dialog {
-            Window::new("图像合成器")
-                .open(&mut self.show_combine_dialog)
-                .show(ctx, |ui| {
-                    ui.label("图像合成器");
-                });
+            let viewport_id = ViewportId::from_hash_of("combine_dialog");
+            let viewport = ViewportBuilder::default()
+                .with_title("图像合成器")
+                .with_resizable(true)
+                .with_inner_size([800.0, 600.0])
+                .with_decorations(true);
+        
+            let mut should_close = false;
+        
+            ctx.show_viewport_immediate(
+                viewport_id,
+                viewport,
+                |ctx, _class| {
+                    CentralPanel::default().show(ctx, |ui| {
+                        if ctx.input(|i| i.viewport().close_requested()) {
+                            should_close = true;
+                        }
+        
+                        if let Some(combiner) = &mut self.combine_dialog {
+                            combiner.update(ui); // 直接传递 ui 而不是 ctx
+                        }
+                    });
+        
+                    if should_close {
+                        ctx.send_viewport_cmd(ViewportCommand::Close);
+                    }
+                },
+            );
+        
+            if should_close {
+                self.show_combine_dialog = false;
+            }
+            
         }
 
         if self.show_about {
             Window::new("关于")
                 .open(&mut self.show_about)
+                .movable(true)
                 .show(ctx, |ui| {
                     ui.label("StegSolve (Rust + Egui)");
-                    ui.label("版本: 0.1.0");
-                    ui.label("作者: 你的名字");
+                    ui.label("版本: 0.2.0");
+                    ui.label("作者: Sn1waR");
                 });
         }
 
@@ -330,21 +482,6 @@ impl eframe::App for StegApp {
             });
         });
     }
-}
-
-fn file_open_dialog() -> Option<String> {
-    // TODO: 显示文件对话框并返回文件路径
-    None
-}
-
-fn file_save_dialog() -> Option<String> {
-    // TODO: 显示保存文件对话框并返回保存路径
-    None
-}
-
-fn save_image(img: &image::RgbaImage, path: String) {
-    // 保存图像到文件
-    img.save(path).unwrap();
 }
 
 

@@ -1,103 +1,76 @@
+use eframe::egui::{self, TextureOptions, TextureHandle};
+use egui::{Context, Slider, Color32, Vec2, Window};
+use image::{RgbaImage, ImageBuffer};
 use std::cell::RefCell;
 use std::rc::Rc;
-use gtk::prelude::*;
-use gtk::{self, Window, Picture, Button, Label, Box as GtkBox};
-use gdk_pixbuf::Pixbuf;
-use image::{RgbaImage, DynamicImage, GenericImageView, ImageBuffer};
+use rfd;
 
-pub struct ImageCombiner {
-    window: Window,
-    picture: Picture,
-    label: Label,
-    transform_num: Rc<RefCell<i32>>,  // 改为Rc包裹
-    img1: RgbaImage,
-    img2: Rc<RefCell<Option<RgbaImage>>>,  // 改为Rc包裹
-}
-
+/// 常量，用于选择合成模式
 const NUM_TRANSFORMS: i32 = 13;
 
+pub struct ImageCombiner {
+    img1: RgbaImage,
+    img2: Rc<RefCell<Option<RgbaImage>>>,
+    transform_num: Rc<RefCell<i32>>,
+    texture: Option<TextureHandle>, // 存储合成图像的纹理
+}
+
 impl ImageCombiner {
-    pub fn new(parent: &impl IsA<gtk::Window>, img1: RgbaImage) -> Self {
-        // 创建窗口
-        let window = Window::new();
-        window.set_title(Some("图像合成器"));
-        window.set_transient_for(Some(parent));
-        window.set_default_size(500, 600);
-        window.set_modal(true);
-
-        // 创建垂直布局
-        let vbox = GtkBox::new(gtk::Orientation::Vertical, 5);
-        
-        // 显示当前模式的标签
-        let label = Label::new(Some("请选择第二张图片"));
-        vbox.append(&label);
-
-        // 图片显示区域
-        let picture = Picture::new();
-        picture.set_size_request(400, 400);
-        let scrolled = gtk::ScrolledWindow::new();
-        scrolled.set_child(Some(&picture));
-        scrolled.set_vexpand(true);
-        vbox.append(&scrolled);
-
-        // 底部按钮区域
-        let button_box = GtkBox::new(gtk::Orientation::Horizontal, 5);
-        button_box.set_halign(gtk::Align::Center);
-
-        let back_btn = Button::with_label("<");
-        let forward_btn = Button::with_label(">");
-        let open_btn = Button::with_label("打开图片");
-        let save_btn = Button::with_label("保存");
-
-        button_box.append(&back_btn);
-        button_box.append(&forward_btn); 
-        button_box.append(&open_btn);
-        button_box.append(&save_btn);
-
-        vbox.append(&button_box);
-        window.set_child(Some(&vbox));
-
-        let combiner = Self {
-            window,
-            picture,
-            label,
-            transform_num: Rc::new(RefCell::new(0)),  // 改为Rc
+    pub fn new(img1: RgbaImage) -> Self {
+        Self {
             img1,
-            img2: Rc::new(RefCell::new(None)),        // 改为Rc
-        };
-
-        // 事件处理
-        let combiner_clone = combiner.clone();
-            back_btn.connect_clicked(move |_| {
-                combiner_clone.backward();
-        });
-
-            let combiner_clone = combiner.clone();
-            forward_btn.connect_clicked(move |_| {
-                combiner_clone.forward();
-            });
-
-        let c = combiner.clone();
-        open_btn.connect_clicked(move |_| {
-            c.open_second_image();
-        });
-
-        let c = combiner.clone();
-        save_btn.connect_clicked(move |_| {
-            c.save_image();
-        });
-
-        combiner
+            img2: Rc::new(RefCell::new(None)),
+            transform_num: Rc::new(RefCell::new(0)),
+            texture: None,
+        }
     }
 
-    pub fn show(&self) {
-        self.window.show();
-    }
-
-    fn backward(&self) {
-        if self.img2.borrow().is_none() { return; }
+    pub fn update(&mut self, ui: &mut egui::Ui) { // 修改参数类型为 Ui
+        ui.vertical(|ui| {
+            ui.label("请选择第二张图片");
     
-        // 将修改操作放在独立的作用域中
+            if let Some(texture) = &self.texture {
+                ui.image(texture);
+            }
+    
+            ui.separator();
+    
+            // 显示当前合成模式的文本
+            ui.label(format!("当前合成模式: {}", self.get_transform_text()));
+    
+            ui.separator();
+    
+            // Transform Selector
+            ui.label("选择合成模式");
+            let mut current_transform = *self.transform_num.borrow();
+            if ui.add(Slider::new(&mut current_transform, 0..=NUM_TRANSFORMS - 1).text("变换模式")).changed() {
+                *self.transform_num.borrow_mut() = current_transform;
+            }
+            ui.separator();
+    
+            // Buttons
+            ui.horizontal(|ui| {
+                if ui.button("<").clicked() {
+                    self.backward(ui.ctx());
+                }
+    
+                if ui.button("打开图片").clicked() {
+                    self.open_second_image(ui.ctx());
+                }
+    
+                if ui.button("保存").clicked() {
+                    self.save_image(ui.ctx());
+                }
+    
+                if ui.button(">").clicked() {
+                    self.forward(ui.ctx());
+                }
+            });
+        });
+    }
+
+    fn backward(&mut self, ctx: &Context) {
+        if self.img2.borrow().is_none() { return; }
         {
             let mut num = self.transform_num.borrow_mut();
             *num = if *num <= 0 {
@@ -105,115 +78,56 @@ impl ImageCombiner {
             } else {
                 *num - 1
             };
-        } // 这里会释放可变借用
-        
-        self.update_image(); // 此时可以安全获取不可变借用
+        }
+        self.update_image_with_context(ctx);
     }
-    
-    fn forward(&self) {
+
+    fn forward(&mut self, ctx: &Context) {
         if self.img2.borrow().is_none() { return; }
-        
         {
             let mut num = self.transform_num.borrow_mut();
             *num = (*num + 1) % NUM_TRANSFORMS;
-        } // 释放可变借用
-        
-        self.update_image();
+        }
+        self.update_image_with_context(ctx);
     }
 
-    fn open_second_image(&self) {
-        let dialog = gtk::FileDialog::new();
-        let window_clone = self.window.clone();
-        let self_clone = self.clone();
-
-        dialog.open(Some(&self.window), None::<&gtk::gio::Cancellable>, 
-            move |res| {
-                if let Ok(file) = res {
-                    if let Some(path) = file.path() {
-                        if let Ok(img) = image::open(&path) {
-                            *self_clone.img2.borrow_mut() = Some(img.to_rgba8());
-                            self_clone.update_image();
-                        } else {
-                            let msg = gtk::MessageDialog::new(
-                                Some(&window_clone),
-                                gtk::DialogFlags::MODAL,
-                                gtk::MessageType::Error,
-                                gtk::ButtonsType::Ok,
-                                "无法打开图片"
-                            );
-                            msg.run_async(|d, _| d.close());
-                        }
-                    }
-                }
+    fn open_second_image(&mut self, ctx: &Context) {
+        let dialog = rfd::FileDialog::new().pick_file();
+        if let Some(path) = dialog {
+            if let Ok(img) = image::open(path) {
+                *self.img2.borrow_mut() = Some(img.to_rgba8());
+                self.update_image_with_context(ctx);
+            } else {
+                println!("无法打开图片");
             }
-        );
-    }
-
-    fn save_image(&self) {
-        if self.img2.borrow().is_none() { return; }
-
-        let dialog = gtk::FileDialog::new();
-        let window_clone = self.window.clone();
-        let self_clone = self.clone();
-
-        dialog.save(
-            Some(&self.window),
-            None::<&gtk::gio::Cancellable>,
-            move |res| {
-                if let Ok(file) = res {
-                    if let Some(path) = file.path() {
-                        if let Some(combined) = self_clone.get_combined_image() {
-                            if let Err(e) = combined.save(path) {
-                                let msg = gtk::MessageDialog::new(
-                                    Some(&window_clone),
-                                    gtk::DialogFlags::MODAL,
-                                    gtk::MessageType::Error,
-                                    gtk::ButtonsType::Ok,
-                                    &format!("保存失败: {}", e)
-                                );
-                                msg.run_async(|d, _| d.close());
-                            }
-                        }
-                    }
-                }
-            }
-        );
-    }
-
-    fn get_transform_text(&self) -> String {
-        match *self.transform_num.borrow() {
-            0 => "XOR",
-            1 => "OR",
-            2 => "AND",
-            3 => "ADD",
-            4 => "ADD (R,G,B separate)",
-            5 => "SUB",
-            6 => "SUB (R,G,B separate)", 
-            7 => "MUL",
-            8 => "MUL (R,G,B separate)",
-            9 => "Lightest (R,G,B separate)",
-            10 => "Darkest (R,G,B separate)",
-            11 => "Horizontal Interlace",
-            12 => "Vertical Interlace",
-            _ => "???"
-        }.to_string()
-    }
-
-    // 修改get_combined_image方法，提前获取转换模式的副本
-    fn get_combined_image(&self) -> Option<RgbaImage> {
-        let img2 = self.img2.borrow();
-        let img2 = img2.as_ref()?;
-        
-        // 提前获取转换模式的不可变借用
-        let transform_num = *self.transform_num.borrow();
-        
-        match transform_num {  // 使用副本而不是实时借用
-            11 => self.horizontal_interlace(img2),
-            12 => self.vertical_interlace(img2),
-            _ => self.combine_pixels(img2, transform_num)  // 需要修改函数签名
         }
     }
 
+    fn save_image(&self, ctx: &Context) {
+        if self.img2.borrow().is_none() { return; }
+
+        let dialog = rfd::FileDialog::new().save_file();
+        if let Some(path) = dialog {
+            if let Some(combined) = self.get_combined_image() {
+                if let Err(e) = combined.save(path) {
+                    println!("保存失败: {}", e);
+                }
+            }
+        }
+    }
+
+    fn get_combined_image(&self) -> Option<RgbaImage> {
+        let img2 = self.img2.borrow();
+        let img2 = img2.as_ref()?;
+
+        let transform_num = *self.transform_num.borrow();
+        
+        match transform_num {
+            11 => self.horizontal_interlace(img2),
+            12 => self.vertical_interlace(img2),
+            _ => self.combine_pixels(img2, transform_num),
+        }
+    }
 
     fn combine_pixels(&self, img2: &RgbaImage, transform_num: i32) -> Option<RgbaImage> {
         let width = self.img1.width().max(img2.width());
@@ -249,42 +163,6 @@ impl ImageCombiner {
                         ((p1[0] as u16 + p2[0] as u16) % 256) as u8,
                         ((p1[1] as u16 + p2[1] as u16) % 256) as u8,
                         ((p1[2] as u16 + p2[2] as u16) % 256) as u8,
-                        255
-                    ],
-                    5 => [ // SUB
-                        p1[0].saturating_sub(p2[0]),
-                        p1[1].saturating_sub(p2[1]),
-                        p1[2].saturating_sub(p2[2]),
-                        255
-                    ],
-                    6 => [ // SUB separate
-                        ((256 + p1[0] as i16 - p2[0] as i16) % 256) as u8,
-                        ((256 + p1[1] as i16 - p2[1] as i16) % 256) as u8,
-                        ((256 + p1[2] as i16 - p2[2] as i16) % 256) as u8,
-                        255
-                    ],
-                    7 => [ // MUL
-                        ((p1[0] as u16 * p2[0] as u16) / 256) as u8,
-                        ((p1[1] as u16 * p2[1] as u16) / 256) as u8,
-                        ((p1[2] as u16 * p2[2] as u16) / 256) as u8,
-                        255
-                    ],
-                    8 => [ // MUL separate
-                        ((p1[0] as u16 * p2[0] as u16) % 256) as u8,
-                        ((p1[1] as u16 * p2[1] as u16) % 256) as u8,
-                        ((p1[2] as u16 * p2[2] as u16) % 256) as u8,
-                        255
-                    ],
-                    9 => [ // Lightest
-                        p1[0].max(p2[0]),
-                        p1[1].max(p2[1]),
-                        p1[2].max(p2[2]),
-                        255
-                    ],
-                    10 => [ // Darkest
-                        p1[0].min(p2[0]),
-                        p1[1].min(p2[1]),
-                        p1[2].min(p2[2]),
                         255
                     ],
                     _ => [p1[0], p1[1], p1[2], 255]
@@ -335,37 +213,34 @@ impl ImageCombiner {
         Some(result)
     }
 
-    fn update_image(&self) {
+    fn update_image_with_context(&mut self, ctx: &Context) {
         if let Some(combined) = self.get_combined_image() {
-            // 更新标签文本
-            self.label.set_text(&self.get_transform_text());
-            
-            // 转换为 Pixbuf 并显示
-            let width = combined.width() as i32;
-            let height = combined.height() as i32;
-            let pixbuf = Pixbuf::from_bytes(
-                &glib::Bytes::from(&combined.as_raw()[..]),
-                gdk_pixbuf::Colorspace::Rgb,
-                true,
-                8,
-                width,
-                height,
-                width * 4,
-            );
-            self.picture.set_pixbuf(Some(&pixbuf));
+            let size = [combined.width() as usize, combined.height() as usize];
+            let image_data = egui::ColorImage::from_rgba_unmultiplied(size, combined.as_raw());
+            self.texture = Some(ctx.load_texture(
+                "combined_image",
+                image_data,
+                TextureOptions::default(),
+            ));
         }
     }
-}
 
-impl Clone for ImageCombiner {
-    fn clone(&self) -> Self {
-        Self {
-            window: self.window.clone(),
-            picture: self.picture.clone(),
-            label: self.label.clone(),
-            transform_num: Rc::clone(&self.transform_num),  // 共享Rc
-            img1: self.img1.clone(),
-            img2: Rc::clone(&self.img2),  // 共享Rc
-        }
+    fn get_transform_text(&self) -> String {
+        match *self.transform_num.borrow() {
+            0 => "XOR",
+            1 => "OR",
+            2 => "AND",
+            3 => "ADD",
+            4 => "ADD (R,G,B separate)",
+            5 => "SUB",
+            6 => "SUB (R,G,B separate)", 
+            7 => "MUL",
+            8 => "MUL (R,G,B separate)",
+            9 => "Lightest (R,G,B separate)",
+            10 => "Darkest (R,G,B separate)",
+            11 => "Horizontal Interlace",
+            12 => "Vertical Interlace",
+            _ => "???"
+        }.to_string()
     }
 }
