@@ -300,48 +300,6 @@ fn build_ui(app: &Application) {
         });
         app.add_action(&quit_action);
 
-        // 分析功能（简单弹窗示意）
-        // for (action_name, msg) in &[
-        //     // ("analyse_format", "这里是文件格式分析界面 (待实现)"),
-        //     // ("analyse_extract", "这里是数据提取界面 (待实现)"),
-        //     // ("stereo_solve", "这里是立体视图界面 (待实现)"),
-        //     // ("frame_browser", "这里是帧浏览器界面 (待实现)"),
-        //     ("image_combine", "这里是图像合成器界面 (待实现)"),
-        // ] {
-        //     let a = SimpleAction::new(action_name, None);
-        //     let msg_str = msg.to_string();
-        //     a.connect_activate(move |_, _| {
-        //         // gtk::MessageDialog::new(
-        //         //     None::<&ApplicationWindow>,
-        //         //     gtk::DialogFlags::MODAL,
-        //         //     gtk::MessageType::Info,
-        //         //     gtk::ButtonsType::Ok,
-        //         //     &msg_str,
-        //         // )
-        //         // .run_async(|dialog, _| dialog.close());
-        //         let dialog = AlertDialog::builder()
-        //             .message(&msg_str)
-        //             .buttons(vec!["确定"]) // 设置按钮，传入一个数组
-        //             .default_button(0) // 设置默认按钮索引
-        //             .build();
-        //         dialog.choose(
-        //             None::<&ApplicationWindow>, // 父窗口（可选）
-        //             None::<&gio::Cancellable>, // 可选的细节信息
-        //             |response| {
-        //                 match response {
-        //                     Ok(button_index) => {
-        //                         if button_index == 0 {
-        //                             println!("用户点击了确定");
-        //                         }
-        //                     }
-        //                     Err(err) => eprintln!("对话框显示出错: {}", err),
-        //                 }
-        //             },
-        //         );
-        //     });
-        //     app.add_action(&a);
-        // }
-
         // 分析 - 文件格式
         let analyse_format_action = SimpleAction::new("analyse_format", None);
         let window_weak = window.downgrade();
