@@ -1,0 +1,97 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write  # 为 GITHUB_TOKEN 设置 contents 的写权限
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install system dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install pkg-config
+
+      - name: Install system dependencies (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          choco install -y pkgconfiglite
+          # 可选：根据需要安装其他 Windows 依赖
+
+      - name: Build with Cargo
+        run: cargo build --release
+
+      - name: Run tests
+        run: cargo test --verbose
+
+      - name: Package artifacts
+        run: |
+          mkdir -p release
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            cp target/release/stegsolve-rs.exe release/stegsolve-rs-${{ matrix.os }}.exe
+            Compress-Archive -Path release/stegsolve-rs-${{ matrix.os }}.exe -DestinationPath release/stegsolve-rs-${{ matrix.os }}.zip
+          elif [[ "${{ matrix.os }}" == "linux" ]]; then
+            cp target/release/stegsolve-rs release/stegsolve-rs-${{ matrix.os }}
+            tar -czvf release/stegsolve-rs-${{ matrix.os }}.tar.gz -C release stegsolve-rs-${{ matrix.os }}
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            cp -R target/release/bundle/osx/Stegsolve.app release/
+            tar -czvf release/stegsolve-rs-${{ matrix.os }}.tar.gz -C release Stegsolve.app
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-release
+          path: release/*
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ./artifacts/**/*.tar.gz
+            ./artifacts/**/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
