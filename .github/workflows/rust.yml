@@ -50,6 +50,12 @@ jobs:
           choco install -y pkgconfiglite
           # 可选：根据需要安装其他 Windows 依赖
 
+      - name: Install system dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev
+
       - name: Build with Cargo
         run: cargo build --release
 
