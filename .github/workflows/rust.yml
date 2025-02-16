@@ -15,7 +15,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: macos-latest
+            arch: x86_64
+            target: macos
+          - os: ubuntu-latest
+            arch: x86_64
+            target: linux
+          - os: ubuntu-latest  # GitHub 现已提供 ARM 原生运行器
+            arch: arm64
+            target: linux-arm
 
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +35,7 @@ jobs:
           toolchain: stable
           profile: minimal
           override: true
+          target: ${{ contains(matrix.target, 'arm') && 'aarch64-unknown-linux-gnu' || '' }}
 
       - name: Cache Cargo dependencies
         uses: actions/cache@v3
@@ -36,69 +46,73 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install system dependencies (macOS)
-        if: matrix.os == 'macos-latest'
+      # macOS 专属步骤
+      - name: Install macOS dependencies
+        if: matrix.target == 'macos'
         run: |
           brew install pkg-config
-          brew install mingw-w64
           rustup target add x86_64-pc-windows-gnu
+          brew install mingw-w64
 
-      - name: Install system dependencies (Linux)
-        if: matrix.os == 'ubuntu-latest'
+      # Linux x86_64 专属步骤
+      - name: Install Linux x86_64 dependencies
+        if: matrix.target == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libclang-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev gcc-aarch64-linux-gnu  
-          rustup target add aarch64-unknown-linux-gnu
+          sudo apt-get install -y libclang-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev
 
-      # 关键修复点 1：分离构建步骤，避免覆盖产物
+      # ARM 专属步骤
+      - name: Install ARM dependencies
+        if: matrix.target == 'linux-arm'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev
+
+      # 构建命令组
       - name: Build macOS binary
-        if: matrix.os == 'macos-latest'
+        if: matrix.target == 'macos'
         run: cargo build --release
 
-      - name: Build Windows binary (cross-compile)
-        if: matrix.os == 'macos-latest'
+      - name: Build Windows binary (macOS cross-compile)
+        if: matrix.target == 'macos'
         run: cargo build --release --target x86_64-pc-windows-gnu
 
-      - name: Build Linux binary
-        if: matrix.os == 'ubuntu-latest'
+      - name: Build Linux x86_64
+        if: matrix.target == 'linux'
         run: cargo build --release
 
-      - name: Build Linux ARM binary
-        if: matrix.os == 'ubuntu-latest'
-        run: cargo build --release --target aarch64-unknown-linux-gnu  # 交叉编译 ARM
+      - name: Build Linux ARM64 (Native)
+        if: matrix.target == 'linux-arm'
+        run: cargo build --release
 
-      - name: Run tests
-        run: cargo test --verbose
-
-      # 关键修复点 2：修正打包逻辑，确保所有平台产物都被处理
-       # 修改后的打包步骤
+      # 统一打包逻辑
       - name: Package artifacts
         run: |
           mkdir -p release
-          case "${{ matrix.os }}" in
-            macos-latest)
+          case "${{ matrix.target }}" in
+            macos)
               cp target/release/stegsolve-rs release/stegsolve-rs-macos
               cp target/x86_64-pc-windows-gnu/release/stegsolve-rs.exe release/stegsolve-rs-windows.exe
               ;;
-            ubuntu-latest)
-              # x86_64 构建
+            linux)
               cp target/release/stegsolve-rs release/stegsolve-rs-linux-x86_64
-              # ARM 构建
-              cp target/aarch64-unknown-linux-gnu/release/stegsolve-rs release/stegsolve-rs-linux-aarch64
+              ;;
+            linux-arm)
+              cp target/release/stegsolve-rs release/stegsolve-rs-linux-aarch64
               ;;
           esac
 
-          # 统一压缩所有产物
+          # 生成压缩包
           cd release
-          tar -czvf binaries-${{ matrix.os }}.tar.gz ./*
+          tar -czvf binaries-${{ matrix.target }}.tar.gz ./*
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: binaries-${{ matrix.os }}
-          path: release/binaries-${{ matrix.os }}.tar.gz
+          name: binaries-${{ matrix.target }}
+          path: release/binaries-${{ matrix.target }}.tar.gz
 
   release:
     needs: build
@@ -111,7 +125,6 @@ jobs:
         with:
           path: ./artifacts
 
-      # 关键修复点 3：正确解压并组织文件
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
@@ -120,6 +133,10 @@ jobs:
       - name: Publish Release
         uses: softprops/action-gh-release@v1
         with:
-          files: release-assets/*
+          files: |
+            release-assets/stegsolve-rs-macos
+            release-assets/stegsolve-rs-windows.exe
+            release-assets/stegsolve-rs-linux-x86_64
+            release-assets/stegsolve-rs-linux-aarch64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
