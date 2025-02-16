@@ -42,7 +42,7 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           brew install pkg-config
-          # 安装交叉编译目标
+          brew install mingw-w64
           rustup target add x86_64-pc-windows-gnu
 
       - name: Install system dependencies (Linux)
