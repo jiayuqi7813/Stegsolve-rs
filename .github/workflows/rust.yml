@@ -50,6 +50,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libclang-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev gcc-aarch64-linux-gnu  
+          rustup target add aarch64-unknown-linux-gnu
 
       # 关键修复点 1：分离构建步骤，避免覆盖产物
       - name: Build macOS binary
