@@ -24,6 +24,11 @@ java原版全功能重构
 
 你也可以选择直接下载release版本运行，目前支持windows-x64、linux-x64、macos-arm64、macos-x64。需要更多平台可以提交issue。
 
+linux需要如下依赖
+```shell
+ sudo apt-get install -y libclang-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev
+```
+
 ## Why Rust+egui?
 egui确实文明，gtk坑太多了（
 
