@@ -54,7 +54,7 @@ fn main() {
         ..Default::default()
     };
     if let Err(e)=eframe::run_native(
-        "StegSolve (Rust + Egui)",
+        "StegSolve-rs",
         options,
         Box::new(|cc| {
             let mut fonts = egui::FontDefinitions::default();
