@@ -76,7 +76,7 @@ jobs:
             # 构建 Windows 版本
             cp target/x86_64-pc-windows-gnu/release/stegsolve-rs.exe release/stegsolve-rs-${{ matrix.os }}-windows.exe
             tar -czvf release/stegsolve-rs-${{ matrix.os }}-windows.tar.gz -C release stegsolve-rs-${{ matrix.os }}-windows.exe
-          elif [[ "${{ matrix.os }}" == "linux" ]]; then
+          elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
             cp target/release/stegsolve-rs release/stegsolve-rs-${{ matrix.os }}
             tar -czvf release/stegsolve-rs-${{ matrix.os }}.tar.gz -C release stegsolve-rs-${{ matrix.os }}
           fi
