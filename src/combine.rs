@@ -1,5 +1,5 @@
 use eframe::egui::{self, TextureOptions, TextureHandle};
-use egui::{Context, Slider, Color32, Vec2, Window};
+use egui::{Context, Slider};
 use image::{RgbaImage, ImageBuffer};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -103,7 +103,7 @@ impl ImageCombiner {
         }
     }
 
-    fn save_image(&self, ctx: &Context) {
+    fn save_image(&self, _ctx: &Context) {
         if self.img2.borrow().is_none() { return; }
 
         let dialog = rfd::FileDialog::new().save_file();

@@ -36,7 +36,7 @@ impl FrameBrowser {
         let path = path.as_ref();
         let file = std::fs::File::open(path)?;
         let buf_reader = std::io::BufReader::new(file);
-        let mut reader = image::io::Reader::new(buf_reader).with_guessed_format()?;
+        let reader = image::ImageReader::new(buf_reader).with_guessed_format()?;
         if let Some(format) = reader.format() {
             match format {
                 ImageFormat::Gif => {
@@ -106,7 +106,7 @@ impl FrameBrowser {
                         self.textures[idx] = Some(texture);
                     }
                     if let Some(texture) = &self.textures[idx] {
-                        let image_size = texture.size_vec2();
+                        // let image_size = texture.size_vec2();
                         ui.image(texture);
                     }
                 });

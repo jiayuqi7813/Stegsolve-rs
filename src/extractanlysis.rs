@@ -1,5 +1,5 @@
 use eframe::egui;
-use egui::{Align, Color32, Context, Layout, ScrollArea, Ui};
+use egui::{Align, Layout, ScrollArea, Ui};
 use image::RgbaImage;
 use std::fs::File;
 use std::io::Write;

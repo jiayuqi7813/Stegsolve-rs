@@ -80,23 +80,23 @@ fn main() {
 
 
 impl StegApp {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Box<Self> {
-        // 设置字体
-        let mut fonts = egui::FontDefinitions::default();
-        fonts.font_data.insert(
-            "misans".to_owned(),
-            std::sync::Arc::new(egui::FontData::from_static(
-                include_bytes!("../font/MiSans-Normal.ttf")
-            )),
-        );
-        fonts.families
-            .entry(egui::FontFamily::Proportional)
-            .or_default()
-            .insert(0, "misans".to_owned());
+    // pub fn new(cc: &eframe::CreationContext<'_>) -> Box<Self> {
+    //     // 设置字体
+    //     let mut fonts = egui::FontDefinitions::default();
+    //     fonts.font_data.insert(
+    //         "misans".to_owned(),
+    //         std::sync::Arc::new(egui::FontData::from_static(
+    //             include_bytes!("../font/MiSans-Normal.ttf")
+    //         )),
+    //     );
+    //     fonts.families
+    //         .entry(egui::FontFamily::Proportional)
+    //         .or_default()
+    //         .insert(0, "misans".to_owned());
 
-        cc.egui_ctx.set_fonts(fonts);
-        Box::new(Self::default())
-    }
+    //     cc.egui_ctx.set_fonts(fonts);
+    //     Box::new(Self::default())
+    // }
 
     fn open_image(&mut self, path: &std::path::Path) {
         match image::open(path) {
@@ -111,7 +111,7 @@ impl StegApp {
                 }
                 self.frame_browser = Some(framebrowser::FrameBrowser::new());
                 if let Some(browser) = &mut self.frame_browser {
-                    browser.load_frames(&self.current_file_path.as_ref().unwrap());
+                    let _ = browser.load_frames(&self.current_file_path.as_ref().unwrap());
                 }
                 self.combine_dialog = Some(ImageCombiner::new(self.transform.as_ref().unwrap().get_image().clone()));
                 
@@ -186,7 +186,7 @@ impl eframe::App for StegApp {
 
         CentralPanel::default().show(ctx, |ui| {
             ScrollArea::both()
-                .id_source("image_scroll")
+                .id_salt("image_scroll")
                 .scroll_offset(self.scroll_pos)
                 .show(ui, |ui| {
                     if let Some(transform) = &self.transform {
@@ -315,7 +315,7 @@ impl eframe::App for StegApp {
 
 
         if self.show_stereo_dialog {
-            if let Some(transform) = &self.transform {
+            if let Some(_transform) = &self.transform {
                 let viewport_id = ViewportId::from_hash_of("stereo_dialog");
                 let viewport = ViewportBuilder::default()
                     .with_title("立体图分析")

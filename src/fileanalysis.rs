@@ -27,11 +27,10 @@ impl FileAnalysis {
         });
         
         // 添加底部按钮
+        let ctx = ui.ctx().clone();
         ui.horizontal(|ui| {
             if ui.button("复制到剪贴板").clicked() {
-                ui.output_mut(|o| {
-                    o.copied_text = self.report.join("\n");
-                });
+                ctx.copy_text(self.report.join("\n"));
             }
             
             if ui.button("导出报告").clicked() {
