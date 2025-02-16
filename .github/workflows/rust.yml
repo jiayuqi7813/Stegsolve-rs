@@ -15,7 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -42,13 +42,8 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           brew install pkg-config
-
-      - name: Install system dependencies (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: powershell
-        run: |
-          choco install -y pkgconfiglite
-          # 可选：根据需要安装其他 Windows 依赖
+          # 安装交叉编译目标
+          rustup target add x86_64-pc-windows-gnu
 
       - name: Install system dependencies (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -56,8 +51,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libclang-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev
 
-      - name: Build with Cargo
-        run: cargo build --release
+      - name: Build with Cargo (macOS)
+        if: matrix.os == 'macos-latest'
+        run: cargo build --release # 构建 macOS 版本
+
+      - name: Build with Cargo (macOS cross-compiling for Windows)
+        if: matrix.os == 'macos-latest'
+        run: cargo build --release --target x86_64-pc-windows-gnu # 交叉编译 Windows 版本
+
+      - name: Build with Cargo (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo build --release # 构建 Linux 版本
 
       - name: Run tests
         run: cargo test --verbose
@@ -65,13 +69,14 @@ jobs:
       - name: Package artifacts
         run: |
           mkdir -p release
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            cp target/release/stegsolve-rs.exe release/stegsolve-rs-${{ matrix.os }}.exe
-            Compress-Archive -Path release/stegsolve-rs-${{ matrix.os }}.exe -DestinationPath release/stegsolve-rs-${{ matrix.os }}.zip
-          elif [[ "${{ matrix.os }}" == "linux" ]]; then
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            # 构建 macOS 版本
             cp target/release/stegsolve-rs release/stegsolve-rs-${{ matrix.os }}
             tar -czvf release/stegsolve-rs-${{ matrix.os }}.tar.gz -C release stegsolve-rs-${{ matrix.os }}
-          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            # 构建 Windows 版本
+            cp target/x86_64-pc-windows-gnu/release/stegsolve-rs.exe release/stegsolve-rs-${{ matrix.os }}-windows.exe
+            tar -czvf release/stegsolve-rs-${{ matrix.os }}-windows.tar.gz -C release stegsolve-rs-${{ matrix.os }}-windows.exe
+          elif [[ "${{ matrix.os }}" == "linux" ]]; then
             cp target/release/stegsolve-rs release/stegsolve-rs-${{ matrix.os }}
             tar -czvf release/stegsolve-rs-${{ matrix.os }}.tar.gz -C release stegsolve-rs-${{ matrix.os }}
           fi
