@@ -112,6 +112,19 @@ impl Stereo {
     }
 
     pub fn update(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+        // 检查键盘输入
+        let left_pressed = ctx.input(|i| i.key_pressed(egui::Key::ArrowLeft));
+        let right_pressed = ctx.input(|i| i.key_pressed(egui::Key::ArrowRight));
+        
+        if left_pressed {
+            self.transform.borrow_mut().back();
+            self.update_texture(ui);
+        }
+        if right_pressed {
+            self.transform.borrow_mut().forward();
+            self.update_texture(ui);
+        }
+
         ui.vertical(|ui| {
 
             let text = {
@@ -128,13 +141,18 @@ impl Stereo {
 
             ui.horizontal(|ui| {
                 let transform_rc = self.transform.clone();
-                if ui.button("◀").clicked() {
+                let left_button = egui::Button::new("◀")
+                    .fill(if left_pressed { ui.style().visuals.selection.bg_fill } else { ui.style().visuals.widgets.inactive.bg_fill });
+                if ui.add(left_button).clicked() {
                     transform_rc.borrow_mut().back();
-                    self.update_texture(ui); // Update texture after back
+                    self.update_texture(ui);
                 }
-                if ui.button("▶").clicked() {
-                    transform_rc.borrow_mut().forward(); // Call forward on the correct transform
-                    self.update_texture(ui); // Update texture after forward
+                
+                let right_button = egui::Button::new("▶")
+                    .fill(if right_pressed { ui.style().visuals.selection.bg_fill } else { ui.style().visuals.widgets.inactive.bg_fill });
+                if ui.add(right_button).clicked() {
+                    transform_rc.borrow_mut().forward();
+                    self.update_texture(ui);
                 }
                 if ui.button("保存").clicked() {
                     if let Some(path) = FileDialog::new()

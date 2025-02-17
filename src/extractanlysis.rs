@@ -91,7 +91,9 @@ impl Default for ExtractDialog {
 
 impl ExtractDialog {
     /// 在 egui 的 UI 内绘制对话框，image 为待提取数据的图像
-    pub fn ui(&mut self, ui: &mut Ui, image: &RgbaImage) {
+    /// 返回值：true 表示对话框应该关闭
+    pub fn ui(&mut self, ui: &mut Ui, image: &RgbaImage) -> bool {
+        let mut should_close = false;
         // 外层采用垂直布局
         ui.vertical(|ui| {
             // ── 预览设置 ─────────────────────────────
@@ -224,6 +226,7 @@ impl ExtractDialog {
                 
                 if ui.add_sized(button_size, egui::Button::new("取消")).clicked() {
                     self.open = false;
+                    should_close = true;
                 }
                 ui.add_space(5.0);
                 
@@ -244,10 +247,16 @@ impl ExtractDialog {
                     self.generate_extract(image);
                     self.generate_preview();
                 }
+                ui.add_space(5.0);
+                
+                if ui.add_sized(button_size, egui::Button::new("关闭")).clicked() {
+                    should_close = true;
+                }
             });
             
             ui.allocate_space(egui::vec2(0.0, 10.0)); // 底部添加固定间距
         });
+        should_close
     }
 
     // ─────────────────────────────

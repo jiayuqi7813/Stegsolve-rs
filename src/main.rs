@@ -302,7 +302,9 @@ impl eframe::App for StegApp {
         
                             // 正常绘制对话框内容
                             if let Some(dialog) = self.extract_dialog.as_mut() {
-                                dialog.ui(ui, transform.get_image());
+                                if dialog.ui(ui, transform.get_image()) {
+                                    should_close = true;
+                                }
                             }
                         });
                         // 如果检测到关闭命令，执行关闭操作
@@ -414,7 +416,7 @@ impl eframe::App for StegApp {
                         }
         
                         if let Some(combiner) = &mut self.combine_dialog {
-                            combiner.update(ui); // 直接传递 ui 而不是 ctx
+                            combiner.update(ui);
                         }
                     });
         
@@ -425,9 +427,12 @@ impl eframe::App for StegApp {
             );
         
             if should_close {
+                // 在关闭窗口时重置状态
+                if let Some(combiner) = &mut self.combine_dialog {
+                    combiner.reset();
+                }
                 self.show_combine_dialog = false;
             }
-            
         }
 
         if self.show_about {
@@ -445,29 +450,69 @@ impl eframe::App for StegApp {
 
         TopBottomPanel::bottom("controls").show(ctx, |ui| {
             ui.horizontal(|ui| {
+                // 处理鼠标滚轮和上下键
+                let mut zoom_delta = 0.0;
+                
+                if let Some(scroll_delta) = ctx.input(|i| {
+                    if i.pointer.hover_pos().is_some() {
+                        Some(i.raw_scroll_delta.y)
+                    } else {
+                        None
+                    }
+                }) {
+                    zoom_delta = scroll_delta * 0.001;
+                }
+
+                // 处理上下键
+                ctx.input(|i| {
+                    if i.key_down(egui::Key::ArrowUp) {
+                        zoom_delta += 0.02;
+                    }
+                    if i.key_down(egui::Key::ArrowDown) {
+                        zoom_delta -= 0.02;
+                    }
+                });
+
+                self.zoom_level = (self.zoom_level + zoom_delta).clamp(0.1, 5.0);
+
                 // 缩放控制
                 ui.add(Slider::new(&mut self.zoom_level, 0.1..=5.0).text("缩放"));
 
                 // 导航按钮
                 ui.separator();
-                if ui.button("<").clicked() {
+                
+                // 检查键盘输入
+                let left_key_pressed = ctx.input(|i| i.key_pressed(egui::Key::ArrowLeft));
+                let right_key_pressed = ctx.input(|i| i.key_pressed(egui::Key::ArrowRight));
+                
+                let left_button = egui::Button::new("<")
+                    .fill(if left_key_pressed { ui.style().visuals.selection.bg_fill } else { ui.style().visuals.widgets.inactive.bg_fill });
+                let right_button = egui::Button::new(">")
+                    .fill(if right_key_pressed { ui.style().visuals.selection.bg_fill } else { ui.style().visuals.widgets.inactive.bg_fill });
+                
+                let left_clicked = ui.add(left_button).clicked();
+                let right_clicked = ui.add(right_button).clicked();
+                
+                if let Some(transform) = &self.transform {
+                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                        ui.set_min_width(200.0);
+                        ui.label(format!("通道: {}", transform.get_text()));
+                    });
+                }
+
+                if left_clicked || left_key_pressed {
                     if let Some(transform) = &mut self.transform {
                         transform.back();
                         self.texture = None;
                         self.current_channel_text = transform.get_text();
                     }
                 }
-
-                if let Some(transform) = &self.transform {
-                    ui.label(format!("通道: {}", transform.get_text()));
-                }
-
-
-                if ui.button(">").clicked() {
+                
+                if right_clicked || right_key_pressed {
                     if let Some(transform) = &mut self.transform {
                         transform.forward();
                         self.texture = None;
-                        self.current_channel_text = transform.get_text(); // 更新通道描述
+                        self.current_channel_text = transform.get_text();
                     }
                 }
 
