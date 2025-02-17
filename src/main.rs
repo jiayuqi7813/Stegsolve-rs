@@ -8,7 +8,6 @@ mod extractanlysis;
 mod framebrowser;
 mod combine;
 
-
 use eframe::egui;
 use egui::*;
 use rfd;
@@ -124,6 +123,17 @@ impl StegApp {
 
 impl eframe::App for StegApp {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+        // 添加拖放支持
+        if !ctx.input(|i| i.raw.dropped_files.is_empty()) {
+            // 获取拖放的第一个文件
+            if let Some(dropped_file) = ctx.input(|i| i.raw.dropped_files.first().cloned()) {
+                // 如果文件路径可用
+                if let Some(path) = dropped_file.path {
+                    self.open_image(&path);
+                }
+            }
+        }
+
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
             menu::bar(ui, |ui| {
                 // 文件菜单
@@ -483,6 +493,3 @@ impl eframe::App for StegApp {
         });
     }
 }
-
-
-
