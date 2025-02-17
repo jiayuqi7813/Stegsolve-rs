@@ -200,45 +200,53 @@ impl ExtractDialog {
             // ── 预览区域 ─────────────────────────────
             ui.group(|ui| {
                 ui.label("预览");
-                ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
-                    ui.add(
-                        egui::TextEdit::multiline(&mut self.preview_text)
-                            .font(egui::TextStyle::Monospace)
-                            .code_editor()
-                            .desired_rows(10)
-                            .lock_focus(true)
-                            .desired_width(f32::INFINITY),
-                    );
-                });
+                ScrollArea::vertical()
+                    .max_height(120.0) // 进一步减小预览区域高度
+                    .show(ui, |ui| {
+                        ui.add(
+                            egui::TextEdit::multiline(&mut self.preview_text)
+                                .font(egui::TextStyle::Monospace)
+                                .code_editor()
+                                .desired_rows(6) // 减小默认行数
+                                .desired_width(f32::INFINITY),
+                        );
+                    });
             });
 
             ui.separator();
 
             // ── 按钮区域 ─────────────────────────────
-            ui.horizontal(|ui| {
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    // “取消”按钮：关闭对话框
-                    if ui.button("取消").clicked() {
-                        self.open = false;
-                    }
-                    // “保存二进制”按钮：先生成提取数据，再保存二进制文件
-                    if ui.button("保存二进制").clicked() {
-                        self.generate_extract(image);
-                        self.save_binary();
-                    }
-                    // “保存文本”按钮：生成预览后保存预览文本
-                    if ui.button("保存文本").clicked() {
-                        self.generate_extract(image);
-                        self.generate_preview();
-                        self.save_preview();
-                    }
-                    // “预览”按钮：生成预览数据并显示到预览区域
-                    if ui.button("预览").clicked() {
-                        self.generate_extract(image);
-                        self.generate_preview();
-                    }
-                });
+            ui.allocate_space(egui::vec2(0.0, 10.0)); // 添加固定间距
+            
+            // 创建一个固定大小的按钮区域
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                let button_size = egui::vec2(60.0, 24.0); // 设置固定的按钮大小
+                
+                if ui.add_sized(button_size, egui::Button::new("取消")).clicked() {
+                    self.open = false;
+                }
+                ui.add_space(5.0);
+                
+                if ui.add_sized(button_size, egui::Button::new("保存二进制")).clicked() {
+                    self.generate_extract(image);
+                    self.save_binary();
+                }
+                ui.add_space(5.0);
+                
+                if ui.add_sized(button_size, egui::Button::new("保存文本")).clicked() {
+                    self.generate_extract(image);
+                    self.generate_preview();
+                    self.save_preview();
+                }
+                ui.add_space(5.0);
+                
+                if ui.add_sized(button_size, egui::Button::new("预览")).clicked() {
+                    self.generate_extract(image);
+                    self.generate_preview();
+                }
             });
+            
+            ui.allocate_space(egui::vec2(0.0, 10.0)); // 底部添加固定间距
         });
     }
 
