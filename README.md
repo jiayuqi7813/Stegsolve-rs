@@ -46,5 +46,10 @@ egui确实文明，gtk坑太多了（
 - [ ] 多语言支持
 - [ ] 项目结构重构
 
+## 贡献
+感谢以下贡献者的贡献
+
+[@b3nguang](https://github.com/b3nguang) 
+
 ## 许可证
 [MIT License](LICENSE)
