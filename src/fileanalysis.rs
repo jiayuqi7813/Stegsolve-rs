@@ -1,8 +1,8 @@
+use crc32fast::Hasher;
+use eframe::egui::{Align, CentralPanel, Frame, Layout, ScrollArea, TopBottomPanel, Ui};
+use rfd::FileDialog;
 use std::fs::File;
 use std::io::Read;
-use crc32fast::Hasher;
-use eframe::egui;
-
 pub struct FileAnalysis {
     report: Vec<String>,
     scroll_to_bottom: bool,
@@ -18,28 +18,54 @@ impl FileAnalysis {
         }
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui) {
-        // 使用 ScrollArea 显示分析报告
-        egui::ScrollArea::vertical().stick_to_bottom(self.scroll_to_bottom).show(ui, |ui| {
-            for line in &self.report {
-                ui.label(line);
-            }
-        });
-        
-        // 添加底部按钮
-        let ctx = ui.ctx().clone();
-        ui.horizontal(|ui| {
-            if ui.button("复制到剪贴板").clicked() {
-                ctx.copy_text(self.report.join("\n"));
-            }
-            
-            if ui.button("导出报告").clicked() {
-                if let Some(path) = rfd::FileDialog::new()
-                    .add_filter("文本文件", &["txt"])
-                    .save_file() {
-                    std::fs::write(path, self.report.join("\n")).ok();
-                }
-            }
+    pub fn ui(&mut self, ui: &mut Ui) {
+        // 底部按钮面板（始终固定显示）
+        TopBottomPanel::bottom("bottom_panel")
+            .show(ui.ctx(), |ui| {
+                Frame::NONE
+                    .fill(ui.style().visuals.window_fill)
+                    .show(ui, |ui| {
+                        ui.with_layout(
+                            Layout::left_to_right(Align::Center)
+                                .with_cross_justify(true),
+                            |ui| {
+                                if ui.button("复制到剪贴板").clicked() {
+                                    ui.ctx().copy_text(self.report.join("\n"));
+                                }
+                                if ui.button("导出报告").clicked() {
+                                    if let Some(path) = FileDialog::new()
+                                        .add_filter("文本文件", &["txt"])
+                                        .save_file()
+                                    {
+                                        if let Err(e) = std::fs::write(&path, self.report.join("\n")) {
+                                            eprintln!("保存文件失败: {}", e);
+                                        }
+                                    }
+                                }
+                            }
+                        );
+                    });
+            });
+
+        // 中央内容区域（可滚动）
+        CentralPanel::default().show(ui.ctx(), |ui| {
+            ScrollArea::vertical()
+                .auto_shrink([false, false])
+                .stick_to_bottom(self.scroll_to_bottom)
+                .show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    
+                    // 显示报告内容
+                    for line in &self.report {
+                        ui.label(line);
+                    }
+
+                    // 自动滚动处理
+                    if self.scroll_to_bottom {
+                        ui.scroll_to_cursor(Some(Align::BOTTOM));
+                        self.scroll_to_bottom = false;
+                    }
+                });
         });
     }
 }
@@ -58,7 +84,7 @@ fn get_word_le(data: &[u8], offset: usize) -> u16 {
     if offset + 1 >= data.len() {
         0
     } else {
-        u16::from_le_bytes([data[offset], data[offset+1]])
+        u16::from_le_bytes([data[offset], data[offset + 1]])
     }
 }
 
@@ -66,7 +92,12 @@ fn get_dword_le(data: &[u8], offset: usize) -> u32 {
     if offset + 3 >= data.len() {
         0
     } else {
-        u32::from_le_bytes([data[offset], data[offset+1], data[offset+2], data[offset+3]])
+        u32::from_le_bytes([
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        ])
     }
 }
 
@@ -74,7 +105,12 @@ fn get_dword_be(data: &[u8], offset: usize) -> u32 {
     if offset + 3 >= data.len() {
         0
     } else {
-        u32::from_be_bytes([data[offset], data[offset+1], data[offset+2], data[offset+3]])
+        u32::from_be_bytes([
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        ])
     }
 }
 
@@ -83,13 +119,13 @@ fn hex_dump(data: &[u8], from: usize, to: usize, report: &mut Vec<String>) {
     if from >= data.len() {
         return;
     }
-    
+
     report.push("十六进制:".to_string());
-    for i in (from..=to.min(data.len()-1)).step_by(16) {
+    for i in (from..=to.min(data.len() - 1)).step_by(16) {
         let mut line = String::new();
         for j in 0..16 {
             if i + j <= to && i + j < data.len() {
-                line.push_str(&format!("{:02X} ", data[i+j]));
+                line.push_str(&format!("{:02X} ", data[i + j]));
                 if j == 7 {
                     line.push(' ');
                 }
@@ -99,11 +135,11 @@ fn hex_dump(data: &[u8], from: usize, to: usize, report: &mut Vec<String>) {
     }
 
     report.push("ASCII:".to_string());
-    for i in (from..=to.min(data.len()-1)).step_by(16) {
+    for i in (from..=to.min(data.len() - 1)).step_by(16) {
         let mut line = String::new();
         for j in 0..16 {
             if i + j <= to && i + j < data.len() {
-                let c = data[i+j] as char;
+                let c = data[i + j] as char;
                 if c.is_ascii_graphic() {
                     line.push(c);
                 } else {
@@ -117,7 +153,6 @@ fn hex_dump(data: &[u8], from: usize, to: usize, report: &mut Vec<String>) {
         report.push(line);
     }
 }
-
 
 /// 分析 BMP 文件
 
@@ -152,7 +187,7 @@ fn analyse_bmp(data: &[u8], report: &mut Vec<String>) {
         1 => "RLE 8位压缩",
         2 => "RLE 4位压缩",
         3 => "Bitfields",
-        _ => "未知压缩方式"
+        _ => "未知压缩方式",
     };
     report.push(format!("压缩方式: {} ({})", compression, compression_type));
 
@@ -166,11 +201,12 @@ fn analyse_bmp(data: &[u8], report: &mut Vec<String>) {
 
         report.push(format!("\n颜色表 ({} 个颜色):", color_count));
         let color_table_offset = 14 + header_size as usize;
-        
+
         for i in 0..color_count as usize {
             let offset = color_table_offset + i * 4;
             if offset + 4 <= data.len() {
-                report.push(format!("颜色 {}: B={:02X} G={:02X} R={:02X} A={:02X}",
+                report.push(format!(
+                    "颜色 {}: B={:02X} G={:02X} R={:02X} A={:02X}",
                     i,
                     data[offset],
                     data[offset + 1],
@@ -199,7 +235,7 @@ fn analyse_png(data: &[u8], report: &mut Vec<String>) {
 
     while pos + 12 <= data.len() {
         let length = get_dword_be(data, pos) as usize;
-        let chunk_type = &data[pos+4..pos+8];
+        let chunk_type = &data[pos + 4..pos + 8];
         let chunk_name = std::str::from_utf8(chunk_type).unwrap_or("未知");
 
         report.push(format!("\n块类型: {}", chunk_name));
@@ -207,9 +243,9 @@ fn analyse_png(data: &[u8], report: &mut Vec<String>) {
 
         // CRC32校验
         let mut hasher = Hasher::new();
-        hasher.update(&data[pos+4..pos+8+length]);
+        hasher.update(&data[pos + 4..pos + 8 + length]);
         let calculated_crc = hasher.finalize();
-        let file_crc = get_dword_be(data, pos+8+length);
+        let file_crc = get_dword_be(data, pos + 8 + length);
 
         report.push(format!("CRC32: {:08X}", file_crc));
         if calculated_crc != file_crc {
@@ -220,28 +256,28 @@ fn analyse_png(data: &[u8], report: &mut Vec<String>) {
         match chunk_name {
             "IHDR" => {
                 if length >= 13 {
-                    let width = get_dword_be(data, pos+8);
-                    let height = get_dword_be(data, pos+12);
-                    let bit_depth = data[pos+16];
-                    let color_type = data[pos+17];
-                    
+                    let width = get_dword_be(data, pos + 8);
+                    let height = get_dword_be(data, pos + 12);
+                    let bit_depth = data[pos + 16];
+                    let color_type = data[pos + 17];
+
                     report.push(format!("宽度: {}", width));
                     report.push(format!("高度: {}", height));
                     report.push(format!("位深度: {}", bit_depth));
                     report.push(format!("颜色类型: {}", color_type));
                 }
-            },
+            }
             "IDAT" => {
                 report.push("图像数据块".to_string());
-            },
+            }
             "IEND" => {
                 report.push("文件结束标记".to_string());
                 break;
-            },
+            }
             _ => {
                 if length > 0 {
                     report.push("数据内容:".to_string());
-                    hex_dump(data, pos+8, pos+8+length-1, report);
+                    hex_dump(data, pos + 8, pos + 8 + length - 1, report);
                 }
             }
         }
@@ -250,9 +286,7 @@ fn analyse_png(data: &[u8], report: &mut Vec<String>) {
     }
 }
 
-
-
-// 改进GIF分析 
+// 改进GIF分析
 fn analyse_gif(data: &[u8], report: &mut Vec<String>) {
     if data.len() < 13 {
         report.push("文件太短，无法解析GIF头".to_string());
@@ -277,7 +311,10 @@ fn analyse_gif(data: &[u8], report: &mut Vec<String>) {
         0
     };
 
-    report.push(format!("全局颜色表: {}", if global_color_table { "是" } else { "否" }));
+    report.push(format!(
+        "全局颜色表: {}",
+        if global_color_table { "是" } else { "否" }
+    ));
     report.push(format!("颜色分辨率: {}", color_resolution));
     report.push(format!("排序标志: {}", if sort_flag { "是" } else { "否" }));
     report.push(format!("全局颜色表大小: {}", size_of_global_color_table));
@@ -291,8 +328,13 @@ fn analyse_gif(data: &[u8], report: &mut Vec<String>) {
             if pos + 3 > data.len() {
                 break;
             }
-            report.push(format!("颜色 {}: R={:02X} G={:02X} B={:02X}",
-                i, data[pos], data[pos+1], data[pos+2]));
+            report.push(format!(
+                "颜色 {}: R={:02X} G={:02X} B={:02X}",
+                i,
+                data[pos],
+                data[pos + 1],
+                data[pos + 2]
+            ));
             pos += 3;
         }
     }
@@ -303,19 +345,19 @@ fn analyse_gif(data: &[u8], report: &mut Vec<String>) {
             0x2C => {
                 if pos + 10 <= data.len() {
                     report.push("\n图像描述符:".to_string());
-                    let left = get_word_le(data, pos+1);
-                    let top = get_word_le(data, pos+3);
-                    let width = get_word_le(data, pos+5);
-                    let height = get_word_le(data, pos+7);
-                    
+                    let left = get_word_le(data, pos + 1);
+                    let top = get_word_le(data, pos + 3);
+                    let width = get_word_le(data, pos + 5);
+                    let height = get_word_le(data, pos + 7);
+
                     report.push(format!("左边界: {}", left));
                     report.push(format!("上边界: {}", top));
-                    report.push(format!("宽度: {}", width)); 
+                    report.push(format!("宽度: {}", width));
                     report.push(format!("高度: {}", height));
-                    report.push(format!("标志位: {:02X}", data[pos+9]));
+                    report.push(format!("标志位: {:02X}", data[pos + 9]));
                 }
                 pos += 10;
-            },
+            }
             0x21 => {
                 if pos + 2 > data.len() {
                     break;
@@ -324,15 +366,15 @@ fn analyse_gif(data: &[u8], report: &mut Vec<String>) {
                     0xF9 => {
                         report.push("\n图形控制扩展:".to_string());
                         if pos + 8 <= data.len() {
-                            let block_size = data[pos+2];
-                            let flags = data[pos+3];
-                            let delay = get_word_le(data, pos+4);
+                            let block_size = data[pos + 2];
+                            let flags = data[pos + 3];
+                            let delay = get_word_le(data, pos + 4);
                             report.push(format!("块大小: {}", block_size));
                             report.push(format!("标志位: {:02X}", flags));
                             report.push(format!("延迟时间: {}", delay));
                         }
                         pos += 8;
-                    },
+                    }
                     0xFE => {
                         report.push("\n注释扩展:".to_string());
                         pos += 2;
@@ -340,7 +382,7 @@ fn analyse_gif(data: &[u8], report: &mut Vec<String>) {
                             let size = data[pos] as usize;
                             pos += 1;
                             if pos + size <= data.len() {
-                                if let Ok(comment) = std::str::from_utf8(&data[pos..pos+size]) {
+                                if let Ok(comment) = std::str::from_utf8(&data[pos..pos + size]) {
                                     report.push(format!("注释: {}", comment));
                                 }
                                 pos += size;
@@ -349,22 +391,21 @@ fn analyse_gif(data: &[u8], report: &mut Vec<String>) {
                             }
                         }
                         pos += 1;
-                    },
+                    }
                     _ => {
-                        report.push(format!("\n未知扩展块: {:02X}", data[pos+1]));
+                        report.push(format!("\n未知扩展块: {:02X}", data[pos + 1]));
                         pos += 2;
                     }
                 }
-            },
+            }
             0x3B => {
                 report.push("\n文件结束标记".to_string());
                 break;
-            },
-            _ => pos += 1
+            }
+            _ => pos += 1,
         }
     }
 }
-
 
 fn analyse_jpg(data: &[u8], report: &mut Vec<String>) {
     let mut pos = 0;
@@ -421,7 +462,6 @@ fn analyse_jpg(data: &[u8], report: &mut Vec<String>) {
     }
 }
 
-
 /// 分析文件格式
 pub fn analyse_file_format(file_path: &str) -> Vec<String> {
     let mut report = vec!["文件格式报告".to_string()];
@@ -437,7 +477,12 @@ pub fn analyse_file_format(file_path: &str) -> Vec<String> {
             if data.len() >= 2 && data[0] == b'B' && data[1] == b'M' {
                 report.push("文件格式: BMP".to_string());
                 analyse_bmp(&data, &mut report);
-            } else if data.len() >= 4 && data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47 {
+            } else if data.len() >= 4
+                && data[0] == 0x89
+                && data[1] == 0x50
+                && data[2] == 0x4E
+                && data[3] == 0x47
+            {
                 report.push("文件格式: PNG".to_string());
                 analyse_png(&data, &mut report);
             } else if data.len() >= 6 && data[0] == b'G' && data[1] == b'I' && data[2] == b'F' {
