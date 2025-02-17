@@ -305,9 +305,6 @@ impl eframe::App for StegApp {
                                 dialog.ui(ui, transform.get_image());
                             }
                         });
-                        //实时输出窗口大小
-                        println!("{:?}", ctx.screen_rect());
-        
                         // 如果检测到关闭命令，执行关闭操作
                         if should_close {
                             ctx.send_viewport_cmd(ViewportCommand::Close);
