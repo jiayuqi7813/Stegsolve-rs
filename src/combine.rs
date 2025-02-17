@@ -25,9 +25,32 @@ impl ImageCombiner {
         }
     }
 
-    pub fn update(&mut self, ui: &mut egui::Ui) { // 修改参数类型为 Ui
+    pub fn update(&mut self, ui: &mut egui::Ui) { 
+        // 检查拖放
+        if !ui.ctx().input(|i| i.raw.dropped_files.is_empty()) {
+            if let Some(dropped_file) = ui.ctx().input(|i| i.raw.dropped_files.first().cloned()) {
+                if let Some(path) = dropped_file.path {
+                    if let Ok(img) = image::open(&path) {
+                        *self.img2.borrow_mut() = Some(img.to_rgba8());
+                        self.update_image_with_context(ui.ctx());
+                    }
+                }
+            }
+        }
+
+        // 检查键盘输入
+        let left_key_pressed = ui.ctx().input(|i| i.key_pressed(egui::Key::ArrowLeft));
+        let right_key_pressed = ui.ctx().input(|i| i.key_pressed(egui::Key::ArrowRight));
+        
+        if left_key_pressed {
+            self.backward(ui.ctx());
+        }
+        if right_key_pressed {
+            self.forward(ui.ctx());
+        }
+
         ui.vertical(|ui| {
-            ui.label("请选择第二张图片");
+            ui.label("请选择第二张图片（可以直接拖入图片）");
     
             if let Some(texture) = &self.texture {
                 ui.image(texture);
@@ -50,7 +73,9 @@ impl ImageCombiner {
     
             // Buttons
             ui.horizontal(|ui| {
-                if ui.button("<").clicked() {
+                let left_button = egui::Button::new("<")
+                    .fill(if left_key_pressed { ui.style().visuals.selection.bg_fill } else { ui.style().visuals.widgets.inactive.bg_fill });
+                if ui.add(left_button).clicked() {
                     self.backward(ui.ctx());
                 }
     
@@ -62,7 +87,13 @@ impl ImageCombiner {
                     self.save_image(ui.ctx());
                 }
     
-                if ui.button(">").clicked() {
+                if ui.button("重置").clicked() {
+                    self.reset();
+                }
+    
+                let right_button = egui::Button::new(">")
+                    .fill(if right_key_pressed { ui.style().visuals.selection.bg_fill } else { ui.style().visuals.widgets.inactive.bg_fill });
+                if ui.add(right_button).clicked() {
                     self.forward(ui.ctx());
                 }
             });
@@ -242,5 +273,12 @@ impl ImageCombiner {
             12 => "Vertical Interlace",
             _ => "???"
         }.to_string()
+    }
+
+    /// 重置状态到初始值
+    pub fn reset(&mut self) {
+        *self.img2.borrow_mut() = None;
+        *self.transform_num.borrow_mut() = 0;
+        self.texture = None;
     }
 }
