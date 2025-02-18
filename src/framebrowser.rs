@@ -86,6 +86,23 @@ impl FrameBrowser {
 
     /// 在传入的 UI 中绘制帧浏览器界面
     pub fn ui(&mut self, ui: &mut Ui) {
+        // 检查键盘输入
+        let left_pressed = ui.ctx().input(|i| i.key_pressed(egui::Key::ArrowLeft));
+        let right_pressed = ui.ctx().input(|i| i.key_pressed(egui::Key::ArrowRight));
+
+        if !self.frames.is_empty() {
+            if left_pressed {
+                if self.current_frame == 0 {
+                    self.current_frame = self.frames.len() - 1;
+                } else {
+                    self.current_frame -= 1;
+                }
+            }
+            if right_pressed {
+                self.current_frame = (self.current_frame + 1) % self.frames.len();
+            }
+        }
+
         ui.vertical(|ui| {
             // 如果没有加载帧，则提示
             if self.frames.is_empty() {
@@ -112,14 +129,19 @@ impl FrameBrowser {
                 });
                 // 底部按钮区域
                 ui.horizontal(|ui| {
-                    if ui.button("<").clicked() {
+                    let left_button = egui::Button::new("<")
+                        .fill(if left_pressed { ui.style().visuals.selection.bg_fill } else { ui.style().visuals.widgets.inactive.bg_fill });
+                    if ui.add(left_button).clicked() {
                         if self.current_frame == 0 {
                             self.current_frame = self.frames.len() - 1;
                         } else {
                             self.current_frame -= 1;
                         }
                     }
-                    if ui.button(">").clicked() {
+
+                    let right_button = egui::Button::new(">")
+                        .fill(if right_pressed { ui.style().visuals.selection.bg_fill } else { ui.style().visuals.widgets.inactive.bg_fill });
+                    if ui.add(right_button).clicked() {
                         self.current_frame = (self.current_frame + 1) % self.frames.len();
                     }
                     if ui.button("Save").clicked() {
