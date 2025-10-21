@@ -22,7 +22,7 @@ jobs:
           - os: ubuntu-latest
             arch: x86_64
             target: linux
-          - os: ubuntu-latest  # GitHub 现已提供 ARM 原生运行器
+          - os: ubuntu-24.04-arm
             arch: arm64
             target: linux-arm
 
@@ -35,7 +35,6 @@ jobs:
           toolchain: stable
           profile: minimal
           override: true
-          target: ${{ contains(matrix.target, 'arm') && 'aarch64-unknown-linux-gnu' || '' }}
 
       - name: Cache Cargo dependencies
         uses: actions/cache@v3
