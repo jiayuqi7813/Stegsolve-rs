@@ -22,7 +22,7 @@ java原版全功能重构
 
 `cargo run`
 
-你也可以选择直接下载release版本运行，目前支持windows-x64、linux-x64、macos-arm64、macos-x64。需要更多平台可以提交issue。
+你也可以选择直接下载release版本运行，目前支持windows-x64、linux-x64、linux-aarch64、macos-arm64、macos-x64。需要更多平台可以提交issue。
 
 linux需要如下依赖
 ```shell
