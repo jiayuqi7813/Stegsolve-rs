@@ -232,24 +232,49 @@ fn analyse_png(data: &[u8], report: &mut Vec<String>) {
 
     report.push("文件头: 有效的PNG文件".to_string());
     let mut pos = 8;
+    
+    // APNG相关统计
+    let mut is_apng = false;
+    let mut total_frames = 0;
+    let mut idat_count = 0;
+    let mut fdat_count = 0;
+    const MAX_CHUNK_DISPLAY: usize = 50; // 最多显示50个chunk的详细信息
+    let mut chunk_count = 0;
 
     while pos + 12 <= data.len() {
         let length = get_dword_be(data, pos) as usize;
+        
+        // 防止越界
+        if pos + 12 + length > data.len() {
+            report.push(format!("\n警告: 在位置 {} 的chunk长度异常，停止解析", pos));
+            break;
+        }
+        
         let chunk_type = &data[pos + 4..pos + 8];
         let chunk_name = std::str::from_utf8(chunk_type).unwrap_or("未知");
+        
+        chunk_count += 1;
+        
+        // 只显示前N个chunk的详细信息，或者重要的chunk
+        let should_display_detail = chunk_count <= MAX_CHUNK_DISPLAY || 
+            matches!(chunk_name, "IHDR" | "acTL" | "fcTL" | "IEND" | "PLTE" | "tRNS");
 
-        report.push(format!("\n块类型: {}", chunk_name));
-        report.push(format!("数据长度: {} 字节", length));
+        if should_display_detail {
+            report.push(format!("\n块类型: {}", chunk_name));
+            report.push(format!("数据长度: {} 字节", length));
 
-        // CRC32校验
-        let mut hasher = Hasher::new();
-        hasher.update(&data[pos + 4..pos + 8 + length]);
-        let calculated_crc = hasher.finalize();
-        let file_crc = get_dword_be(data, pos + 8 + length);
+            // CRC32校验（只对较小的chunk进行验证）
+            if length < 1024 * 1024 {  // 只验证小于1MB的chunk
+                let mut hasher = Hasher::new();
+                hasher.update(&data[pos + 4..pos + 8 + length]);
+                let calculated_crc = hasher.finalize();
+                let file_crc = get_dword_be(data, pos + 8 + length);
 
-        report.push(format!("CRC32: {:08X}", file_crc));
-        if calculated_crc != file_crc {
-            report.push(format!("计算得到的CRC32: {:08X} (不匹配)", calculated_crc));
+                report.push(format!("CRC32: {:08X}", file_crc));
+                if calculated_crc != file_crc {
+                    report.push(format!("计算得到的CRC32: {:08X} (不匹配)", calculated_crc));
+                }
+            }
         }
 
         // 特殊块分析
@@ -267,22 +292,90 @@ fn analyse_png(data: &[u8], report: &mut Vec<String>) {
                     report.push(format!("颜色类型: {}", color_type));
                 }
             }
+            "acTL" => {
+                // APNG动画控制chunk
+                is_apng = true;
+                if length >= 8 {
+                    let num_frames = get_dword_be(data, pos + 8);
+                    let num_plays = get_dword_be(data, pos + 12);
+                    total_frames = num_frames;
+                    
+                    report.push("*** APNG动画控制块 ***".to_string());
+                    report.push(format!("帧数: {}", num_frames));
+                    report.push(format!("播放次数: {} (0=无限循环)", num_plays));
+                }
+            }
+            "fcTL" => {
+                // APNG帧控制chunk
+                if length >= 26 && should_display_detail {
+                    let seq_num = get_dword_be(data, pos + 8);
+                    let width = get_dword_be(data, pos + 12);
+                    let height = get_dword_be(data, pos + 16);
+                    let delay_num = get_word_le(data, pos + 24);
+                    let delay_den = get_word_le(data, pos + 26);
+                    
+                    let delay = if delay_den == 0 {
+                        delay_num as f32 / 100.0
+                    } else {
+                        delay_num as f32 / delay_den as f32
+                    };
+                    
+                    report.push(format!("帧序号: {}", seq_num));
+                    report.push(format!("帧尺寸: {}x{}", width, height));
+                    report.push(format!("延迟: {:.3}秒", delay));
+                }
+            }
             "IDAT" => {
-                report.push("图像数据块".to_string());
+                idat_count += 1;
+                if should_display_detail {
+                    report.push("图像数据块".to_string());
+                }
+            }
+            "fdAT" => {
+                // APNG帧数据chunk
+                fdat_count += 1;
+                if should_display_detail {
+                    if length >= 4 {
+                        let seq_num = get_dword_be(data, pos + 8);
+                        report.push(format!("帧数据块 (序号: {})", seq_num));
+                    } else {
+                        report.push("帧数据块".to_string());
+                    }
+                }
             }
             "IEND" => {
                 report.push("文件结束标记".to_string());
                 break;
             }
             _ => {
-                if length > 0 {
+                // 对于其他chunk，只显示少量数据
+                if length > 0 && length <= 256 && should_display_detail {
                     report.push("数据内容:".to_string());
-                    hex_dump(data, pos + 8, pos + 8 + length - 1, report);
+                    hex_dump(data, pos + 8, (pos + 8 + length - 1).min(pos + 8 + 128), report);
+                    if length > 128 {
+                        report.push(format!("... (剩余 {} 字节已省略)", length - 128));
+                    }
                 }
             }
         }
 
         pos += 12 + length;
+    }
+    
+    // 输出统计信息
+    report.push("\n=== 文件统计 ===".to_string());
+    if is_apng {
+        report.push(format!("这是一个APNG动画文件，包含 {} 帧", total_frames));
+        report.push(format!("IDAT块数量: {}", idat_count));
+        report.push(format!("fdAT块数量: {}", fdat_count));
+    } else {
+        report.push("这是一个标准PNG文件".to_string());
+        report.push(format!("IDAT块数量: {}", idat_count));
+    }
+    report.push(format!("总chunk数量: {}", chunk_count));
+    
+    if chunk_count > MAX_CHUNK_DISPLAY {
+        report.push(format!("\n注意: 为避免卡顿，只显示了前{}个chunk和重要chunk的详细信息", MAX_CHUNK_DISPLAY));
     }
 }
 
