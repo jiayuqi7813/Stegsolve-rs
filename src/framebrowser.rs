@@ -5,6 +5,7 @@ use image::AnimationDecoder;
 use image::{ImageError, ImageFormat, RgbaImage};
 use std::path::Path;
 use std::io::BufReader;
+use crate::apng_decoder::{check_apng, ApngDecoder};
 
 /// 帧浏览器：用于浏览、切换和保存图片帧
 pub struct FrameBrowser {
@@ -23,29 +24,58 @@ impl FrameBrowser {
         }
     }
 
-    /// 从指定路径加载图像帧（目前仅支持单帧）
+    /// 从指定路径加载图像帧（支持GIF、APNG、WebP和静态图片）
     pub fn load_frames<P: AsRef<Path>>(&mut self, path: P) -> Result<(), ImageError> {
-        //输出路径
-        // println!("{:?}", path.as_ref());
         // 清空现有帧
         self.frames.clear();
         self.textures.clear();
         self.current_frame = 0;
 
-        // 加载图像
         let path = path.as_ref();
+        
+        // 首先检查是否为APNG格式（避免卡死）
+        if let Ok(apng_info) = check_apng(path) {
+            if apng_info.is_apng {
+                println!("检测到APNG格式，帧数: {}", apng_info.frame_count);
+                
+                // 使用专门的APNG解码器
+                match ApngDecoder::from_path(path) {
+                    Ok(decoder) => {
+                        let frames = decoder.into_frames();
+                        println!("成功解码 {} 帧", frames.len());
+                        for frame in frames {
+                            self.frames.push(frame);
+                            self.textures.push(None);
+                        }
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        eprintln!("APNG解码失败: {}, 尝试作为静态PNG加载", e);
+                        // 失败时回退到加载第一帧
+                        let img = image::open(path)?.to_rgba8();
+                        self.frames.push(img);
+                        self.textures.push(None);
+                        return Ok(());
+                    }
+                }
+            }
+        }
+        
+        // 非APNG格式，使用常规方式加载
         let file = std::fs::File::open(path)?;
         let buf_reader = std::io::BufReader::new(file);
         let reader = image::ImageReader::new(buf_reader).with_guessed_format()?;
+        
         if let Some(format) = reader.format() {
             match format {
                 ImageFormat::Gif => {
-                    // 由于 GifDecoder 需要独立的文件句柄，所以重新打开文件
+                    // GIF动画处理
                     let file = std::fs::File::open(path)?;
                     let buffered = BufReader::new(file);
                     let decoder = GifDecoder::new(buffered)?;
-                    // 使用 AnimationDecoder trait 提供的 into_frames 方法
                     let frames = decoder.into_frames().collect_frames()?;
+                    
+                    println!("GIF帧数: {}", frames.len());
                     for frame in frames {
                         self.frames.push(frame.into_buffer());
                         self.textures.push(None);
@@ -53,14 +83,14 @@ impl FrameBrowser {
                     return Ok(());
                 }
                 ImageFormat::WebP => {
-                    // 当前 WebP 多帧支持有限，加载首帧（动画 WebP 需要额外处理）
+                    // WebP处理（动画支持有限）
                     let img = reader.decode()?.to_rgba8();
                     self.frames.push(img);
                     self.textures.push(None);
                     return Ok(());
                 }
                 _ => {
-                    // 其他格式：加载单帧
+                    // 其他格式作为静态图像加载
                     let img = reader.decode()?.to_rgba8();
                     self.frames.push(img);
                     self.textures.push(None);

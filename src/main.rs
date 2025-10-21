@@ -7,6 +7,7 @@ mod stereo;
 mod extractanlysis;
 mod framebrowser;
 mod combine;
+mod apng_decoder;
 
 use eframe::egui;
 use egui::*;
