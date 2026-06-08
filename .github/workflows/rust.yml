@@ -67,14 +67,16 @@ jobs:
         if: matrix.target == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libclang-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev
+          # 0.3 起 rfd 改用 xdg-portal 后端，不再需要 libgtk-3-dev / libclang-dev
+          sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev
 
       # ARM 专属步骤
       - name: Install ARM dependencies
         if: matrix.target == 'linux-arm'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libclang-dev libgtk-3-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev
+          # 0.3 起 rfd 改用 xdg-portal 后端，不再需要 libgtk-3-dev / libclang-dev
+          sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev
 
       # 构建命令组
       - name: Build macOS binary

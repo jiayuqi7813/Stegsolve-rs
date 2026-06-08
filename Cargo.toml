@@ -1,18 +1,48 @@
 [package]
 name = "stegsolve-rs"
-version = "0.2.2"
-authors = ["Emil Ernerfeldt <emil.ernerfeldt@gmail.com>"]
+version = "0.3.0"
+authors = ["Sn1waR"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
-rust-version = "1.81"
+rust-version = "1.88"
 publish = false
 
+[[bin]]
+name = "stegsolve-rs"
+path = "src/main.rs"
 
 [dependencies]
-crc32fast = "1.4.2"
-eframe = "0.31.0"
+# 纯算法核心层（GUI 无关，已单测）
+stegsolve-core = { path = "stegsolve-core" }
+
+# UI：egui / eframe 升级到 0.33（MSRV 1.88，可在 rustc 1.90 上构建），
+# 单窗口停靠用 egui_dock 0.18。
+# 注：最新的 0.34 需要 rustc 1.92；若已 `rustup update` 到 ≥1.92，可改回 0.34/0.19。
+eframe = "0.33"
+egui = "0.33"
+egui_dock = "0.18"
+
 env_logger = "0.11.6"
 image = "0.25.5"
-rand = "0.9.0"
-rfd = "0.15.2"
 png = "0.17"
+crc32fast = "1.4.2"
+
+# 文件对话框：改用纯 Rust 的 xdg-portal 后端，去掉 Linux 的 gtk3 系统依赖
+# （macOS/Windows 仍走各自原生后端，不受影响）
+rfd = { version = "0.15.2", default-features = false, features = ["xdg-portal", "tokio"] }
+
+# ── MCP 服务（让大模型调用隐写分析能力）──────────────────────────────
+# 官方 Rust SDK + Streamable-HTTP 服务端，GUI 进程内托管、按钮启停
+rmcp = { version = "1.7", features = [
+    "server", "macros", "schemars", "base64",
+    "transport-streamable-http-server", "transport-io",
+] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "macros"] }
+tokio-util = "0.7"
+axum = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+
+[workspace]
+members = ["stegsolve-core"]
